@@ -1,0 +1,1434 @@
+<!DOCTYPE html>
+<html lang="fr" class="scroll-smooth">
+<head>
+    <meta charset="UTF-T">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cours Complet - La Suite Elastic (ELK) v8.x</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- 
+    Structure du Cours (Basée sur les recommandations)
+    1. Introduction (Contexte Métier)
+    2. Architecture
+    3. ES Fondamentaux (Théorie)
+    4. Installation (Pratique - Apache, ES, Kibana)
+    5. Logstash (Théorie + Pratique)
+    6. Beats (Théorie + Pratique)
+    7. Kibana (Théorie + Pratique)
+    8. Cas Pratiques (Projet)
+    9. Optimisation
+    10. Quiz
+    -->
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+        
+        .code-block {
+            position: relative;
+            background-color: #1f2937; /* gray-800 */
+            color: #d1d5db; /* gray-300 */
+            border-radius: 0.5rem; /* rounded-lg */
+            padding: 1rem;
+            overflow-x: auto;
+            font-family: monospace;
+            font-size: 0.875rem; /* text-sm */
+        }
+        .code-block .copy-btn {
+            position: absolute;
+            top: 0.5rem;
+            right: 0.5rem;
+            background-color: #374151; /* gray-700 */
+            color: white;
+            padding: 0.25rem 0.5rem;
+            border-radius: 0.25rem; /* rounded */
+            font-size: 0.75rem; /* text-xs */
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+        .code-block .copy-btn:hover {
+            background-color: #4b5563; /* gray-600 */
+        }
+        
+        ::-webkit-scrollbar { width: 8px; height: 8px; }
+        ::-webkit-scrollbar-track { background: #f1f5f9; /* slate-100 */ }
+        ::-webkit-scrollbar-thumb { background: #cbd5e1; /* slate-300 */ border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #94a3b8; /* slate-400 */ }
+
+        .sidebar-link.active {
+            background-color: #e0f2fe; /* sky-100 */
+            color: #0c4a6e; /* sky-800 */
+            font-weight: 600;
+        }
+        .sidebar-title {
+            font-size: 0.75rem; /* text-xs */
+            font-weight: 600; /* semibold */
+            color: #64748b; /* slate-500 */
+            text-transform: uppercase;
+            letter-spacing: 0.05em; /* tracking-wider */
+            padding: 0.5rem 0.75rem; /* py-2 px-3 */
+            margin-top: 1rem; /* mt-4 */
+        }
+        
+        /* Styles pour les diagrammes */
+        .diagram-box {
+            padding: 0.75rem 1rem;
+            border-radius: 0.5rem;
+            background-color: #f8fafc; /* slate-50 */
+            border: 1px solid #e2e8f0; /* slate-200 */
+            display: flex; flex-direction: column; align-items: center;
+            min-width: 90px;
+            transition: all 0.2s;
+        }
+        .diagram-box:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 4px 10px rgba(0,0,0,0.05);
+            border-color: #0ea5e9; /* sky-500 */
+        }
+        .diagram-arrow { 
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 2rem; /* text-4xl */
+            color: #94a3b8; /* slate-400 */
+            transform: rotate(90deg); /* Flèche vers le bas par défaut pour mobile */
+        }
+        @media (min-width: 768px) { 
+            .diagram-arrow { 
+                transform: rotate(0deg); /* Flèche vers la droite sur desktop */
+                min-width: 50px;
+            } 
+        }
+
+        /* Styles pour les Tiers ILM */
+        .ilm-tier {
+            border-radius: 0.5rem;
+            padding: 1rem;
+            text-align: center;
+            border-width: 2px;
+        }
+        .ilm-hot { border-color: #ef4444; background-color: #fee2e2; }
+        .ilm-warm { border-color: #f97316; background-color: #ffedd5; }
+        .ilm-cold { border-color: #3b82f6; background-color: #dbeafe; }
+        .ilm-frozen { border-color: #64748b; background-color: #f1f5f9; }
+        
+        /* Styles pour Sharding Diagram */
+        .node-box {
+            background-color: #f8fafc;
+            border: 2px solid #e2e8f0;
+            border-radius: 0.5rem;
+            padding: 1rem;
+            margin: 0.5rem;
+        }
+        .shard-box {
+            display: inline-block;
+            width: 40px;
+            height: 40px;
+            line-height: 40px;
+            text-align: center;
+            border-radius: 0.25rem;
+            font-weight: 600;
+            margin: 0.25rem;
+        }
+        .shard-p { background-color: #dbeafe; border: 1px solid #93c5fd; color: #1e40af; } /* Primary */
+        .shard-r { background-color: #e5e7eb; border: 1px solid #9ca3af; color: #374151; } /* Replica */
+        
+        .focus-box {
+            background-color: #f8fafc;
+            border: 1px solid #e2e8f0;
+            border-left-width: 4px;
+            border-left-color: #0ea5e9; /* sky-500 */
+            padding: 1rem;
+            border-radius: 0.25rem 0.5rem 0.5rem 0.25rem;
+        }
+    </style>
+</head>
+<body class="bg-slate-50">
+
+    <div class="flex flex-col md:flex-row min-h-screen">
+        <!-- Sidebar -->
+        <!-- La sidebar est fixe sur grand écran, et masquée/affichée via JS sur mobile -->
+        <aside class="w-full md:w-72 bg-white border-r border-slate-200 h-screen overflow-y-auto fixed top-0 left-0 z-10 -translate-x-full md:translate-x-0 transition-transform duration-300 ease-in-out" id="sidebar">
+            <div class="p-6">
+                <h2 class="text-xl font-bold text-sky-900">Cours Elastic v8.x</h2>
+                <p class="text-sm text-slate-500">Structure Améliorée</p>
+            </div>
+            <nav class="mt-4 px-3">
+                <ul class="space-y-1">
+                    <!-- AJOUT : Chapitre 0 -->
+                    <li class="sidebar-title">Prérequis</li>
+                    <li><a href="#setup-vm" class="sidebar-link active group flex items-center px-3 py-2 text-slate-700 hover:bg-slate-100 rounded-md text-sm font-medium">0. Prérequis : Environnement VM</a></li>
+
+                    <li class="sidebar-title">Introduction</li>
+                    <li><a href="#intro" class="sidebar-link group flex items-center px-3 py-2 text-slate-700 hover:bg-slate-100 rounded-md text-sm font-medium">1. Introduction à ELK</a></li>
+                    <li><a href="#es-fondamentaux" class="sidebar-link group flex items-center px-3 py-2 text-slate-700 hover:bg-slate-100 rounded-md text-sm font-medium">3. ES - Fondamentaux</a></li>
+                    <li><a href="#installation" class="sidebar-link group flex items-center px-3 py-2 text-slate-700 hover:bg-slate-100 rounded-md text-sm font-medium">4. ES - Installation & Admin</a></li>
+
+                    <li class="sidebar-title">Ingestion</li>
+                    <li><a href="#logstash" class="sidebar-link group flex items-center px-3 py-2 text-slate-700 hover:bg-slate-100 rounded-md text-sm font-medium">5. Logstash</a></li>
+                    <li><a href="#beats" class="sidebar-link group flex items-center px-3 py-2 text-slate-700 hover:bg-slate-100 rounded-md text-sm font-medium">6. La Famille Beats</a></li>
+
+                    <li class="sidebar-title">Visualisation</li>
+                    <li><a href="#kibana" class="sidebar-link group flex items-center px-3 py-2 text-slate-700 hover:bg-slate-100 rounded-md text-sm font-medium">7. Kibana</a></li>
+                    
+                    <li class="sidebar-title">Maîtrise</li>
+                    <li><a href="#cas-pratiques" class="sidebar-link group flex items-center px-3 py-2 text-slate-700 hover:bg-slate-100 rounded-md text-sm font-medium">8. Cas Pratiques</a></li>
+                    <li><a href="#optimisation" class="sidebar-link group flex items-center px-3 py-2 text-slate-700 hover:bg-slate-100 rounded-md text-sm font-medium">9. Optimisation</a></li>
+                    
+                    <li class="sidebar-title">Évaluation</li>
+                    <li><a href="#quiz" class="sidebar-link group flex items-center px-3 py-2 text-slate-700 hover:bg-slate-100 rounded-md text-sm font-medium">10. Quiz Final</a></li>
+
+                    <!-- AJOUT : Annexe -->
+                    <li class="sidebar-title">Annexe</li>
+                    <li><a href="#annexe-vm" class="sidebar-link group flex items-center px-3 py-2 text-slate-700 hover:bg-slate-100 rounded-md text-sm font-medium">Annexe : Dépannage VM</a></li>
+                </ul>
+            </nav>
+            <div class="p-6 h-20"></div> <!-- Espace pour le scroll -->
+        </aside>
+
+        <!-- Main content -->
+        <!-- Ajout de padding-top pour le menu burger mobile, et ml-72 pour le décalage de la sidebar sur desktop -->
+        <main class="flex-1 overflow-y-auto pt-16 md:pt-0 md:ml-72">
+            
+            <!-- Bouton Menu Burger pour mobile -->
+            <button id="menu-toggle" class="md:hidden fixed top-4 left-4 z-20 p-2 bg-white rounded-md shadow-md">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5" />
+                </svg>
+            </button>
+            
+            <!-- Overlay pour fermer le menu sur mobile -->
+            <div id="menu-overlay" class="md:hidden fixed inset-0 bg-black/50 z-0 opacity-0 transition-opacity duration-300 hidden"></div>
+
+            <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+                
+                <!-- AJOUT : Chapitre 0 - Prérequis VM -->
+                <section id="setup-vm" class="content-section space-y-6">
+                    <h1 class="text-4xl font-bold tracking-tight text-slate-900">0. Prérequis et Configuration de l'Environnement</h1>
+                    
+                    <h3 class="text-2xl font-semibold text-sky-900 mt-8">0.1. Pourquoi une Machine Virtuelle ?</h3>
+                    <p class="text-slate-700"><strong>Problème :</strong> Chaque étudiant a un environnement différent (Windows 10/11, macOS, Ubuntu, Fedora...). Les instructions d'installation varient, les versions de Java diffèrent, les permissions sont différentes.</p>
+                    <p class="text-slate-700 mt-2"><strong>Solution :</strong> Nous allons tous utiliser <strong>exactement la même machine virtuelle Linux</strong> pour garantir que :</p>
+                    <ul class="list-disc list-inside space-y-2 text-slate-600">
+                        <li>Toutes les commandes fonctionnent à l'identique.</li>
+                        <li>Les versions des logiciels sont les mêmes.</li>
+                        <li>Les problèmes sont reproductibles et résolvables.</li>
+                        <li>Le formateur peut aider efficacement.</li>
+                    </ul>
+
+                    <h3 class="text-2xl font-semibold text-sky-900 mt-8">0.2. Configuration Requise de la Machine Hôte</h3>
+                    <p class="text-slate-700">Avant de commencer, votre ordinateur doit avoir :</p>
+                    <ul class="list-disc list-inside space-y-2 text-slate-600">
+                        <li><strong>RAM :</strong> 8 Go minimum (16 Go recommandé)</li>
+                        <li><strong>Processeur :</strong> Support de la virtualisation (Intel VT-x ou AMD-V)</li>
+                        <li><strong>Disque :</strong> 50 Go d'espace libre</li>
+                        <li><strong>OS Hôte :</strong> Windows 10+, macOS 10.14+, ou Linux moderne</li>
+                    </ul>
+                    <p class="text-slate-700 mt-2"><strong>Vérification de la virtualisation (Windows) :</strong> Ouvrez le Gestionnaire des tâches (Ctrl+Shift+Échap) -> Onglet "Performance" -> "Processeur". Vérifiez que "Virtualisation" est "Activée".</p>
+
+                    <h3 class="text-2xl font-semibold text-sky-900 mt-8">0.3. Installation de VirtualBox</h3>
+                    <p class="text-slate-700">Téléchargez et installez VirtualBox depuis <a href="https://www.virtualbox.org/wiki/Downloads" target="_blank" class="text-sky-600 underline">virtualbox.org</a>. Suivez l'assistant d'installation par défaut. Redémarrez si demandé (surtout sur Windows).</p>
+                    <p class="text-slate-700 mt-2">Sur macOS, n'oubliez pas d'autoriser l'extension dans "Préférences Système -> Sécurité et confidentialité".</p>
+
+                    <h3 class="text-2xl font-semibold text-sky-900 mt-8">0.4. Téléchargement des Outils Officiels</h3>
+                    <p class="text-slate-700">Nous n'utiliserons pas d'image pré-faite. Nous allons tout construire à partir des sources officielles :</p>
+                    <ol class="list-decimal list-inside space-y-2 text-slate-700">
+                        <li><strong>VirtualBox :</strong> Si ce n'est pas déjà fait, téléchargez-le depuis <a href="https://www.virtualbox.org/wiki/Downloads" target="_blank" class="text-sky-600 underline">virtualbox.org</a>.</li>
+                        <li><strong>Ubuntu Server :</strong> Téléchargez l'ISO de <strong>Ubuntu Server 22.04 LTS</strong> (pas Desktop) depuis <a href="https://ubuntu.com/download/server" target="_blank" class="text-sky-600 underline">ubuntu.com</a>.</li>
+                    </ol>
+
+                    <h3 class="text-2xl font-semibold text-sky-900 mt-8">0.5. Création de la Machine Virtuelle</h3>
+                    <ol class="list-decimal list-inside space-y-2 text-slate-700">
+                        <li>Ouvrez VirtualBox et cliquez sur "Nouvelle" (icône bleue).</li>
+                        <li><strong>Nom :</strong> `ElasticStack-VM`</li>
+                        <li><strong>Image ISO :</strong> Sélectionnez le fichier `.iso` d'Ubuntu Server 22.04 que vous venez de télécharger.</li>
+                        <li>Cochez "Installer en mode 'unattended'" (Installation non assistée).</li>
+                        <li><strong>Utilisateur :</strong> `elastic-student`</li>
+                        <li><strong>Mot de passe :</strong> `Formation2025!`</li>
+                        <li><strong>Nom d'hôte :</strong> `ubuntu-elastic`</li>
+                        <li><strong>Configuration Matérielle :</strong> Allouez au moins **4 Go (4096 Mo) de RAM** et **2 cœurs de CPU**.</li>
+                        <li><strong>Disque Dur :</strong> Créez un disque virtuel de **40 Go** (taille dynamique).</li>
+                        <li>Suivez l'assistant. VirtualBox va démarrer la VM et installer Ubuntu automatiquement. Cela peut prendre 10-15 minutes.</li>
+                    </ol>
+
+                    <h3 class="text-2xl font-semibold text-sky-900 mt-8">0.6. Configuration Réseau de la VM</h3>
+                    <p class="text-slate-700">Pour que votre PC (Hôte) puisse parler à votre VM (Invité), nous devons configurer le réseau.</p>
+                    <div class="focus-box">
+                        <h4 class="text-lg font-semibold text-slate-800">Option A : Accès par Pont (Recommandé)</h4>
+                        <ol class="list-decimal list-inside space-y-2 text-slate-700 text-sm">
+                            <li>Sélectionnez votre VM dans VirtualBox (éteinte).</li>
+                            <li>Cliquez sur "Configuration" -> Onglet "Réseau".</li>
+                            <li>"Mode d'accès réseau" : <strong>Accès par pont (Bridged Adapter)</strong>.</li>
+                            <li>"Nom" : Sélectionnez votre carte réseau principale (ex: Wi-Fi ou Ethernet).</li>
+                        </ol>
+                        <p class="text-slate-700 text-sm mt-2">Votre VM obtiendra sa propre IP sur votre réseau local (ex: 192.168.1.150).</p>
+                    </div>
+
+                    <h3 class="text-2xl font-semibold text-sky-900 mt-8">0.7. Premier Démarrage et Configuration</h3>
+                    <p class="text-slate-700">Une fois l'installation d'Ubuntu terminée, connectez-vous avec `elastic-student` et `Formation2025!`.</p>
+                    <p class="text-slate-700 mt-2">Ouvrez un terminal et mettez à jour le système :</p>
+                    <div class="code-block">
+<pre><code class="language-bash">sudo apt update && sudo apt upgrade -y
+</code></pre>
+                    </div>
+
+                    <!-- AJOUT : Installation de Java -->
+                    <p class="text-slate-700 mt-4 font-semibold">Installation de Java (Pré-requis Elastic)</p>
+                    <p class="text-slate-700">Elasticsearch 8.x requiert Java 11 ou 17. Nous allons installer Java 11 :</p>
+                    <div class="code-block">
+<pre><code class="language-bash">sudo apt install openjdk-11-jdk -y
+</code></pre>
+                    </div>
+                    <p class="text-slate-700 mt-2">Vérifiez l'installation :</p>
+                    <div class="code-block">
+<pre><code class="language-bash">java -version
+# Doit afficher : openjdk version "11.0.x"
+</code></pre>
+                    </div>
+
+                    <h3 class="text-2xl font-semibold text-sky-900 mt-8">0.8. Configuration SSH (Accès Confort)</h3>
+                    <p class="text-slate-700">Pour copier-coller facilement les commandes, nous allons nous connecter à la VM via SSH depuis notre machine hôte.</p>
+                    <div class="code-block">
+<pre><code class="language-bash"># Dans la VM, installez le serveur SSH
+sudo apt install openssh-server -y
+sudo systemctl start ssh
+sudo systemctl enable ssh
+
+# Obtenez l'IP de votre VM
+ip addr show
+# Notez l'adresse IP (ex: 192.168.1.150)
+</code></pre>
+                    </div>
+                    <p class="text-slate-700 mt-2">Depuis votre machine **hôte** (PowerShell, Terminal, etc.) :</p>
+                    <div class="code-block">
+<pre><code class="language-bash">ssh elastic-student@[IP_DE_LA_VM]
+# Entrez le mot de passe : Formation2025!
+</code></pre>
+                    </div>
+                    <p class="text-slate-700 mt-2">Vous êtes maintenant connecté à votre VM. <strong>Exécutez la suite du cours depuis ce terminal SSH.</strong></p>
+
+                    <h3 class="text-2xl font-semibold text-sky-900 mt-8">0.9. Snapshot de Sauvegarde (Crucial)</h3>
+                    <div class="p-4 bg-yellow-100 border-l-4 border-yellow-500 text-yellow-800 rounded-lg">
+                        <p class="font-semibold">TRÈS IMPORTANT : Avant de commencer le Chapitre 1, créez un snapshot.</p>
+                        <ol class="list-decimal list-inside space-y-1 text-sm mt-2">
+                            <li>Éteignez votre VM.</li>
+                            <li>Dans VirtualBox, sélectionnez votre VM.</li>
+                            <li>Menu "Machine" -> "Prendre un instantané" (ou icône "Snapshots").</li>
+                            <li>Nom : "VM Propre - Avant Cours"</li>
+                        </ol>
+                        <p class="text-sm mt-2">Si vous cassez quelque chose, vous pourrez revenir à cet état propre en 30 secondes.</p>
+                    </div>
+                    
+                    <h3 class="text-2xl font-semibold text-sky-900 mt-8">0.10. Validation de l'Environnement</h3>
+                    <div class="focus-box border-l-green-500">
+                        <h3 class="text-xl font-semibold text-green-900 mb-4">✅ Checkpoint Avant de Commencer</h3>
+                        <p class="text-slate-700 mb-4">Exécutez ces commandes manuelles pour valider que votre environnement est prêt :</p>
+                        <div class="code-block">
+<pre><code class="language-bash"># 1. Vérifie Java
+java -version
+
+# 2. Vérifie la RAM (colonne "total" de la ligne Mem:)
+free -h
+
+# 3. Vérifie le disque (ligne "/")
+df -h /
+
+# 4. Vérifie l'accès internet
+ping -c 1 google.com
+</code></pre>
+                        </div>
+                        <p class="text-slate-700 mt-4">Si tout est OK (Java 11, RAM > 3.5Go, Disque > 30Go, ping réussi), vous êtes prêt pour le Chapitre 1 !</p>
+                    </div>
+
+                </section>
+
+                <!-- 1. Introduction -->
+                <section id="intro" class="content-section space-y-6 hidden">
+                    <h1 class="text-4xl font-bold tracking-tight text-slate-900">1. Introduction à la Suite Elastic (ELK)</h1>
+                    <p class="text-lg text-slate-600">Bienvenue dans ce cours sur la stack Elastic 8.x ! Nous allons transformer des données brutes en informations précieuses. Ce guide interactif vous accompagnera de la théorie fondamentale à la création de dashboards complexes.</p>
+                    
+                    <h3 class="text-2xl font-semibold text-sky-900">Les 3 Composants Historiques (ELK)</h3>
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                        <div class="p-6 bg-white rounded-xl shadow-lg border border-slate-200">
+                            <span class="text-4xl">🗄️</span>
+                            <h4 class="text-xl font-semibold text-blue-800 mt-2">Elasticsearch</h4>
+                            <p class="text-slate-600 mt-2">Le **cœur** de la stack. Un moteur de recherche et d'analyse distribué. Il stocke, indexe et rend les données consultables à une vitesse fulgurante.</p>
+                        </div>
+                        <div class="p-6 bg-white rounded-xl shadow-lg border border-slate-200">
+                            <span class="text-4xl">⚙️</span>
+                            <h4 class="text-xl font-semibold text-orange-800 mt-2">Logstash</h4>
+                            <p class="text-slate-600 mt-2">Le **pipeline** de traitement. Un outil côté serveur qui ingère les données de multiples sources, les transforme (parse, enrichit) et les envoie vers Elasticsearch.</p>
+                        </div>
+                        <div class="p-6 bg-white rounded-xl shadow-lg border border-slate-200">
+                            <span class="text-4xl">📊</span>
+                            <h4 class="text-xl font-semibold text-green-800 mt-2">Kibana</h4>
+                            <p class="text-slate-600 mt-2">L'**interface** de visualisation. L'outil web qui vous permet d'explorer, de visualiser (graphiques, cartes) et de créer des dashboards avec vos données.</p>
+                        </div>
+                    </div>
+                    
+                    <h3 class="text-2xl font-semibold text-sky-900 mt-8">... Et l'Évolution : Les Beats</h3>
+                    <p class="text-slate-600">Depuis, la famille s'est agrandie avec les **Beats** : des agents légers conçus pour collecter des types de données spécifiques (logs, métriques, etc.) directement depuis vos serveurs.</p>
+
+                    <!-- AJOUT : Histoire et Évolution -->
+                    <h3 class="text-2xl font-semibold text-sky-900 mt-8">Histoire et Évolution</h3>
+                    <ul class="list-disc list-inside space-y-2 text-slate-600">
+                        <li><strong>2010 :</strong> Shay Banon crée Elasticsearch (initialement pour un projet de recettes de cuisine pour sa femme).</li>
+                        <li><strong>2012 :</strong> Jordan Sissel crée Logstash pour centraliser les logs.</li>
+                        <li><strong>2013 :</strong> Rashid Khan crée Kibana pour visualiser les données.</li>
+                        <li><strong>2014 :</strong> Elastic (l'entreprise) est fondée, unissant ces trois projets.</li>
+                        <li><strong>2015 :</strong> Introduction des Beats, des agents de collecte légers.</li>
+                        <li><strong>2021 :</strong> Changement de licence (Elastic License v2 & SSPL) pour se protéger de l'utilisation par les fournisseurs cloud.</li>
+                    </ul>
+                </section>
+                
+                <!-- 1.5. Théorie des Logs (Le 'Pourquoi') -->
+                <section id="theorie-logs" class="content-section space-y-6 hidden">
+                    <h1 class="text-4xl font-bold tracking-tight text-slate-900">1.5. Comprendre les Logs (Le "Pourquoi")</h1>
+                    <p class="text-lg text-slate-600">Avant de plonger dans la technique, comprenons pourquoi les logs sont l'une des ressources les plus précieuses (et sous-estimées) d'une entreprise.</p>
+
+                    <h3 class="text-2xl font-semibold text-sky-900 mt-8">0.5.1. Qu'est-ce qu'un Log ?</h3>
+                    <p class="text-slate-700"><strong>Définition simple :</strong> Un log est un "journal" automatique d'événements qu'écrit un programme ou un système. C'est comme un carnet de bord qui enregistre tout ce qui se passe.</p>
+                    <p class="text-slate-700 mt-2"><strong>Analogie :</strong> Un serveur web écrit dans son journal :</p>
+                    <div class="code-block text-sm">
+<pre><code>"2025-11-03 08:30:15 : Utilisateur 'jean' s'est connecté"
+"2025-11-03 09:15:32 : Page '/index.html' visitée depuis IP 192.168.1.100"
+"2025-11-03 10:00:45 : ERREUR : Fichier 'config.php' introuvable"</code></pre>
+                    </div>
+
+                    <h3 class="text-2xl font-semibold text-sky-900 mt-8">0.5.2. Pourquoi les Logs sont-ils Cruciaux ?</h3>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div class="p-4 bg-white rounded-lg shadow">
+                            <h4 class="font-semibold text-lg text-blue-700">1. Débogage (Debug)</h4>
+                            <p class="text-slate-600 text-sm mt-1">Quand un site plante, le log dit pourquoi.</p>
+                            <code class="text-xs text-red-600 block mt-1">[ERROR] Database connection failed: Timeout</code>
+                        </div>
+                        <div class="p-4 bg-white rounded-lg shadow">
+                            <h4 class="font-semibold text-lg text-red-700">2. Sécurité (SIEM)</h4>
+                            <p class="text-slate-600 text-sm mt-1">Détecter les attaques en temps réel.</p>
+                            <code class="text-xs text-red-600 block mt-1">[WARN] Failed login 'admin' from IP 1.2.3.4 (3 attempts)</code>
+                        </div>
+                        <div class="p-4 bg-white rounded-lg shadow">
+                            <h4 class="font-semibold text-lg text-green-700">3. Performance (APM)</h4>
+                            <p class="text-slate-600 text-sm mt-1">Révéler les goulots d'étranglement.</p>
+                            <code class="text-xs text-orange-600 block mt-1">[INFO] Page '/produits' loaded in 5.2s (DB: 4.8s)</code>
+                        </div>
+                        <div class="p-4 bg-white rounded-lg shadow">
+                            <h4 class="font-semibold text-lg text-purple-700">4. Business Intelligence</h4>
+                            <p class="text-slate-600 text-sm mt-1">Donner des insights métier.</p>
+                            <code class="text-xs text-purple-600 block mt-1">[INFO] "GET /produit/iphone-15" 200</code>
+                        </div>
+                    </div>
+
+                    <h3 class="text-2xl font-semibold text-sky-900 mt-8">0.5.3. Le Problème : L'Explosion des Logs</h3>
+                    <p class="text-slate-700">Un site e-commerce moyen génère des dizaines de milliers de lignes par jour. Sans outil, il est impossible de répondre à des questions simples :</p>
+                    <ul class="list-disc list-inside space-y-2 text-slate-600">
+                        <li>"Pourquoi le site était lent hier à 15h ?"</li>
+                        <li>"Quelle IP a généré le plus d'erreurs 404 cette semaine ?"</li>
+                    </ul>
+
+                    <h3 class="text-2xl font-semibold text-sky-900 mt-8">0.5.4. La Solution : Centralisation et Analyse</h3>
+                    <p class="text-slate-700">C'est exactement le rôle de la **Stack Elastic** :</p>
+                    <ol class="list-decimal list-inside space-y-2 text-slate-700">
+                        <li><strong>Collecter</strong> tous les logs dispersés (Beats/Logstash).</li>
+                        <li><strong>Centraliser</strong> dans un moteur de recherche (Elasticsearch).</li>
+                        <li><strong>Visualiser</strong> avec des graphiques (Kibana).</li>
+                    </ol>
+                    <p class="text-slate-700 mt-2">Au lieu de chercher dans 50 fichiers, vous tapez dans Kibana :</p>
+                    <div class="code-block">
+<pre><code>response:404 AND @timestamp:[now-1h TO now]</code></pre>
+                    </div>
+                </section>
+
+                <!-- 2. Architecture Globale -->
+                <section id="architecture" class="content-section space-y-6 hidden">
+                    <h1 class="text-4xl font-bold tracking-tight text-slate-900">2. Architecture Globale</h1>
+                    <p class="text-lg text-slate-600">Comprendre comment les données circulent est essentiel. Voici les architectures les plus courantes.</p>
+                    
+                    <div class="p-6 bg-white rounded-xl shadow-lg mt-4">
+                        <h4 class="font-semibold text-lg text-slate-800">1. Architecture "Simple" : Beats → Elasticsearch</h4>
+                        <p class="text-sm text-slate-600 mb-4">Idéal pour les logs standards (via Modules) et les métriques. Faible latence.</p>
+                        <div class="flex flex-col md:flex-row items-center justify-around">
+                            <div class="diagram-box" title="Serveurs Sources"><span class="text-2xl">📈</span> <span class="text-xs font-medium">Beats</span></div>
+                            <div class="diagram-arrow">→</div>
+                            <div class="diagram-box" title="Stockage"><span class="text-2xl">🗄️</span> <span class="text-xs font-medium">Elasticsearch</span></div>
+                            <div class="diagram-arrow">→</div>
+                            <div class="diagram-box" title="Visualisation"><span class="text-2xl">📊</span> <span class="text-xs font-medium">Kibana</span></div>
+                        </div>
+                    </div>
+                    
+                    <div class="p-6 bg-white rounded-xl shadow-lg mt-4">
+                        <h4 class="font-semibold text-lg text-slate-800">2. Architecture "Flexible" : Beats → Logstash → Elasticsearch</h4>
+                        <p class="text-sm text-slate-600 mb-4">L'architecture la plus courante. Nécessaire si vous avez des logs "custom", si vous devez masquer des données (ex: RGPD) ou enrichir les données (ex: GeoIP).</p>
+                        <div class="flex flex-col md:flex-row items-center justify-around">
+                            <div class="diagram-box" title="Serveurs Sources"><span class="text-2xl">📈</span> <span class="text-xs font-medium">Beats</span></div>
+                            <div class="diagram-arrow">→</div>
+                            <div class="diagram-box" title="Transformation"><span class="text-2xl">⚙️</span> <span class="text-xs font-medium">Logstash</span></div>
+                            <div class="diagram-arrow">→</div>
+                            <div class="diagram-box" title="Stockage"><span class="text-2xl">🗄️</span> <span class="text-xs font-medium">Elasticsearch</span></div>
+                            <div class="diagram-arrow">→</div>
+                            <div class="diagram-box" title="Visualisation"><span class="text-2xl">📊</span> <span class="text-xs font-medium">Kibana</span></div>
+                        </div>
+                    </div>
+
+                    <!-- AJOUT : Focus Théorique -->
+                    <div class="focus-box mt-6">
+                        <h3 class="text-xl font-semibold text-sky-900 mb-4">Focus Théorique : Quand se passer de Logstash ?</h3>
+                        <p class="text-slate-700">Vous pouvez envoyer les Beats directement à Elasticsearch (Architecture 1) si :</p>
+                        <ul class="list-disc list-inside space-y-2 text-slate-600 mt-2">
+                            <li>Vous utilisez un **Module Beats** (ex: Nginx, MySQL) qui gère le parsing via un "Pipeline d'Ingestion" côté Elasticsearch.</li>
+                            <li>Vos logs sont déjà en format JSON propre.</li>
+                            <li>Vous n'avez pas besoin d'enrichissement complexe (ex: appels à une API externe).</li>
+                        </ul>
+                    </div>
+
+                </section>
+                
+                <!-- 3. ES - Fondamentaux -->
+                <section id="es-fondamentaux" class="content-section space-y-6 hidden">
+                    <h1 class="text-4xl font-bold tracking-tight text-slate-900">3. Elasticsearch - Fondamentaux</h1>
+                    <p class="text-lg text-slate-600">Plongeons dans le cœur du réacteur. Elasticsearch n'est PAS une base de données SQL. Voici pourquoi.</p>
+                    
+                    <h3 class="text-2xl font-semibold text-sky-900 mt-8">Terminologie : SQL vs Elasticsearch</h3>
+                    <p class="text-slate-700 mb-4">L'analogie la plus simple pour comprendre la structure :</p>
+                    <table class="w-full border border-slate-300 text-left">
+                        <thead class="bg-slate-100">
+                            <tr>
+                                <th class="p-3 border-r">Monde SQL (Relationnel)</th>
+                                <th class="p-3">Monde Elasticsearch (Document)</th>
+                                <th class="p-3">Description</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr class="border-b"><td class="p-3 border-r font-semibold">Base de Données</td><td class="p-3 font-semibold">Cluster</td><td class="p-3">Un ensemble de serveurs.</td></tr>
+                            <tr class="border-b"><td class="p-3 border-r font-semibold">Table</td><td class="p-3 font-semibold">Index</td><td class="p-3">Une collection de données similaires (ex: `logs-apache`).</td></tr>
+                            <tr class="border-b"><td class="p-3 border-r font-semibold">Ligne</td><td class="p-3 font-semibold">Document</td><td class="p-3">Une seule entrée de donnée (un log, un produit).</td></tr>
+                            <tr class="border-b"><td class="p-3 border-r font-semibold">Colonne</td><td class="p-3 font-semibold">Champ (Field)</td><td class="p-3">Une clé et sa valeur (ex: `"response": 200`).</td></tr>
+                            <tr class="border-b"><td class="p-3 border-r font-semibold">Schéma</td><td class="p-3 font-semibold">Mapping</td><td class="p-3">La définition des types de champs (ex: `response` est un `integer`).</td></tr>
+                        </tbody>
+                    </table>
+
+                    <div class="p-6 bg-white rounded-xl shadow-lg mt-6">
+                        <h3 class="text-2xl font-semibold text-sky-900 mb-4">Le Secret de la Vitesse : L'Index Inversé</h3>
+                        <p class="text-slate-700 mb-4">Comment ES peut-il trouver un mot dans 1 milliard de documents en millisecondes ? Il n'lit pas les documents, il utilise un index inversé (comme l'index à la fin d'un livre).</p>
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            <div>
+                                <h4 class="font-semibold text-slate-800">Documents :</h4>
+                                <p class="font-mono bg-sky-100 px-2 py-1 rounded">Doc 1: "Le renard brun."</p>
+                                <p class="font-mono bg-green-100 px-2 py-1 rounded mt-2">Doc 2: "Le renard saute."</p>
+                            </div>
+                            <div>
+                                <h4 class="font-semibold text-slate-800">Index Inversé (Simplifié) :</h4>
+                                <table class="w-full border border-slate-300 text-left text-sm mt-2">
+                                    <thead class="bg-slate-100"><tr><th class="p-2">Terme</th><th class="p-2">Documents</th></tr></thead>
+                                    <tbody>
+                                        <tr class="border-b"><td class="p-2">"brun"</td><td class="p-2"><span class="bg-sky-100 px-2 py-1 rounded">Doc 1</span></td></tr>
+                                        <tr class="border-b"><td class="p-2">"le"</td><td class="p-2"><span class="bg-sky-100 px-2 py-1 rounded">Doc 1</span>, <span class="bg-green-100 px-2 py-1 rounded">Doc 2</span></td></tr>
+                                        <tr class="border-b"><td class="p-2">"renard"</td><td class="p-2"><span class="bg-sky-100 px-2 py-1 rounded">Doc 1</span>, <span class="bg-green-100 px-2 py-1 rounded">Doc 2</span></td></tr>
+                                        <tr class="border-b"><td class="p-2">"saute"</td><td class="p-2"><span class="bg-green-100 px-2 py-1 rounded">Doc 2</span></td></tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                        <p class="text-slate-700 mt-4">Une recherche pour "renard" ne lit pas les documents. Elle consulte l'index, trouve `Doc 1` et `Doc 2` instantanément, puis récupère ces documents.</p>
+                    </div>
+
+                    <div class="focus-box mt-6">
+                        <h3 class="text-xl font-semibold text-sky-900 mb-4">Concept Clé : Analyse (`text` vs `keyword`)</h3>
+                        <p class="text-slate-700">C'est le concept le plus important du "Mapping" (schéma) :</p>
+                        <ul class="list-disc list-inside space-y-2 text-slate-600 mt-2">
+                            <li><strong>`text` (Texte complet) :</strong> Le champ est **analysé**. "Le renard brun" est découpé en tokens: `["le", "renard", "brun"]`. Cela permet de rechercher "renard". Utilisé pour les descriptions, le corps des emails, le message des logs.</li>
+                            <li><strong>`keyword` (Mot-clé) :</strong> Le champ **n'est pas analysé**. "Le renard brun" est stocké comme une seule valeur. On ne peut pas rechercher "renard". On doit chercher la valeur *exacte*. Utilisé pour les codes HTTP (`response: 200`), les IPs, les noms d'utilisateurs, les statuts.</li>
+                        </ul>
+                    </div>
+
+                    <h3 class="text-2xl font-semibold text-sky-900 mt-8">Scalabilité : Shards & Replicas</h3>
+                    <p class="text-slate-700 mb-4">Comment ES gère-t-il des Pétaoctets de données ? Il divise le travail.</p>
+                    <ul class="list-disc list-inside space-y-2 text-slate-600 mt-2">
+                        <li><strong>Shards (Fragments) :</strong> ES divise votre index en morceaux (shards). Si vous avez un index de 1To avec 10 shards, chaque shard gère environ 100Go. Cela permet le **scaling horizontal** (ajouter des machines pour répartir les shards).</li>
+                        <li><strong>Replicas (Répliques) :</strong> ES crée des copies de vos shards. Une réplique n'est jamais sur la même machine que son shard principal. Si un nœud (machine) tombe en panne, la réplique prend le relais. Cela garantit la **haute disponibilité**.</li>
+                    </ul>
+                    
+                    <h4 class="text-lg font-semibold text-slate-800 mt-6">Exemple: Cluster à 3 Nœuds</h4>
+                    <p class="text-slate-700 mb-2">Imaginons un index `logs` avec 3 shards (P0, P1, P2) et 1 réplique (R0, R1, R2).</p>
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4 text-center">
+                        <div class="node-box">
+                            <h5 class="font-bold">Nœud 1</h5>
+                            <div class="shard-box shard-p">P0</div>
+                            <div class="shard-box shard-r">R1</div>
+                        </div>
+                        <div class="node-box">
+                            <h5 class="font-bold">Nœud 2</h5>
+                            <div class="shard-box shard-p">P1</div>
+                            <div class="shard-box shard-r">R2</div>
+                        </div>
+                        <div class="node-box">
+                            <h5 class="font-bold">Nœud 3</h5>
+                            <div class="shard-box shard-p">P2</div>
+                            <div class="shard-box shard-r">R0</div>
+                        </div>
+                    </div>
+                    <p class="text-slate-600 mt-4 text-sm">Si le **Nœud 2 tombe en panne**, P1 est perdu. Mais pas de panique : R1 (sur le Nœud 1) est automatiquement promu en shard principal. L'index est toujours 100% fonctionnel.</p>
+                
+                    <!-- AJOUT : Pratique Dev Tools -->
+                    <h3 class="text-2xl font-semibold text-sky-900 mt-8">Pratique : L'API via les "Dev Tools"</h3>
+                    <p class="text-slate-700 mb-4">La seule façon de parler à Elasticsearch est via son API REST (en JSON). Kibana fournit un outil "Dev Tools" pour le faire facilement.</p>
+                    <p class="text-slate-700">Voici les commandes de base (à tester dans Kibana > Dev Tools) :</p>
+                    <div class="code-block">
+<pre><code class="language-json"># 1. Créer (ou mettre à jour) un document
+POST /mon-premier-index/_doc/1
+{
+  "user": "alex",
+  "message": "Ceci est mon premier document!"
+}
+
+# 2. Récupérer ce document
+GET /mon-premier-index/_doc/1
+
+# 3. Rechercher dans l'index (via Query DSL)
+GET /mon-premier-index/_search
+{
+  "query": {
+    "match": {
+      "message": "document"
+    }
+  }
+}
+
+# 4. Supprimer un document
+DELETE /mon-premier-index/_doc/1
+
+# 5. Supprimer un index (ATTENTION: irréversible)
+DELETE /mon-premier-index
+</code></pre>
+                    </div>
+                </section>
+                
+                <!-- 4. ES - Installation & Admin -->
+                <section id="installation" class="content-section space-y-6 hidden">
+                    <h1 class="text-4xl font-bold tracking-tight text-slate-900">4. Installation & Administration</h1>
+                    <p class="text-lg text-slate-600">Mettons en place notre environnement de travail (sur Debian/Ubuntu).</p>
+
+                    <!-- AJOUT : Installation Apache en premier -->
+                    <h2 class="text-3xl font-bold tracking-tight text-slate-900 mt-8">4.0. Prérequis : Installation d'Apache</h2>
+                    <p class="text-slate-700 mb-4"><strong>Pourquoi ?</strong> Apache est le serveur web qui va générer les logs que nous analyserons. Nous l'installons maintenant pour avoir des données à disposition.</p>
+                    <div class="code-block">
+<pre><code class="language-bash"># Installation
+sudo apt update
+sudo apt install apache2 -y
+
+# Démarrage et activation au boot
+sudo systemctl start apache2
+sudo systemctl enable apache2
+
+# Vérification (doit être "active (running)")
+sudo systemctl status apache2
+</code></pre>
+                    </div>
+                    <p class="text-slate-700 mt-4"><strong>Test de fonctionnement :</strong></p>
+                    <ol class="list-decimal list-inside space-y-2 text-slate-700">
+                        <!-- MODIFIÉ : Utilisation de l'IP de la VM -->
+                        <li>Ouvrez `http://[IP_DE_LA_VM]` dans le navigateur de votre machine **hôte** (vous devriez voir la page par défaut d'Apache).</li>
+                        <li>Générez des logs en simulant du trafic (une erreur 404 est un bon test) :</li>
+                    </ol>
+                    <div class="code-block mt-2">
+<pre><code class="language-bash"># Exécutez ceci dans votre terminal SSH (connecté à la VM)
+curl http://localhost/
+curl http://localhost/page-qui-nexiste-pas  # Génère un 404
+</code></pre>
+                    </div>
+                    <p class="text-slate-700 mt-4"><strong>Format du log (dans `/var/log/apache2/access.log`) :</strong></p>
+                    <div class="code-block text-sm">
+<pre><code>127.0.0.1 - - [03/Nov/2025:14:30:15 +0000] "GET / HTTP/1.1" 200 3380 "-" "curl/7.68.0"</code></pre>
+                    </div>
+
+                    <h2 class="text-3xl font-bold tracking-tight text-slate-900 mt-12">4.1. Installation d'Elasticsearch (v8.x)</h2>
+                    <p>Ajoutez la clé et le dépôt Elastic :</p>
+                    <div class="code-block">
+<pre><code class="language-bash"># 1. Ajouter la clé GPG d'Elastic
+wget -qO - https://artifacts.elastic.co/GPG-KEY-elasticsearch | sudo gpg --dearmor -o /usr/share/keyrings/elasticsearch-keyring.gpg
+
+# 2. Ajouter le dépôt
+sudo apt-get install apt-transport-https
+echo "deb [signed-by=/usr/share/keyrings/elasticsearch-keyring.gpg] https://artifacts.elastic.co/packages/8.x/apt stable main" | sudo tee /etc/apt/sources.list.d/elastic-8.x.list
+
+# 3. Installer Elasticsearch
+sudo apt-get update && sudo apt-get install elasticsearch
+</code></pre>
+                    </div>
+                    <p class="mt-4">Une fois installé, démarrez-le. <strong>Important :</strong> La version 8.x active la sécurité par défaut (HTTPS + mot de passe).</p>
+                    
+                    <!-- AJOUT : Configuration network.host -->
+                    <p class="text-slate-700 font-semibold">Configuration pour la VM :</p>
+                    <p class="text-slate-700">Pour qu'Elasticsearch soit accessible depuis votre machine hôte (via `[IP_DE_LA_VM]`), modifiez `/etc/elasticsearch/elasticsearch.yml` :</p>
+                    <div class="code-block">
+<pre><code class="language-bash">sudo nano /etc/elasticsearch/elasticsearch.yml
+</code></pre>
+                    </div>
+                    <p class="text-slate-700">Décommentez (ou ajoutez) la ligne `network.host` et mettez-la à `0.0.0.0` :</p>
+                    <div class="code-block"><pre><code>network.host: 0.0.0.0</code></pre></div>
+
+                    <p class="text-slate-700 mt-4">Démarrez le service et réinitialisez le mot de passe :</p>
+                    <div class="code-block">
+<pre><code class="language-bash">sudo systemctl start elasticsearch
+sudo systemctl enable elasticsearch
+
+# Attendez 1-2 minutes que le service démarre...
+
+# Générez un nouveau mot de passe pour l'utilisateur 'elastic'
+# (Le précédent est affiché au premier démarrage, mais souvent perdu)
+sudo /usr/share/elasticsearch/bin/elasticsearch-reset-password -u elastic
+</code></pre>
+                    </div>
+                    <p class="p-4 bg-yellow-100 border-l-4 border-yellow-500 text-yellow-800 rounded-lg mt-4"><strong>Important :</strong> Notez précieusement le mot de passe généré !</p>
+                    
+                    <!-- AJOUT : Vérifications ES -->
+                    <h4 class="text-lg font-semibold text-slate-800 mt-6">Vérifications (Elasticsearch)</h4>
+                    <div class="code-block">
+<pre><code class="language-bash"># Test de base (remplacez <votre_mot_de_passe>)
+# Note: Nous utilisons localhost ici car nous sommes DANS la VM
+curl --insecure -u elastic:&lt;votre_mot_de_passe&gt; https://localhost:9200
+
+# Devrait retourner un JSON avec "You Know, for Search"
+
+# Erreur courante : vm.max_map_count
+# Si le service ne démarre pas (voir sudo journalctl -u elasticsearch)
+# Solution :
+sudo sysctl -w vm.max_map_count=262144
+echo 'vm.max_map_count=262144' | sudo tee -a /etc/sysctl.conf
+</code></pre>
+                    </div>
+
+                    <h2 class="text-3xl font-bold tracking-tight text-slate-900 mt-12">4.2. Installation de Kibana (v8.x)</h2>
+                    <p>Installez Kibana (qui se connectera à notre ES local).</p>
+                    <div class="code-block">
+<pre><code class="language-bash">sudo apt-get install kibana
+</code></pre>
+                    </div>
+                    
+                    <!-- AJOUT : Configuration server.host -->
+                    <p class="text-slate-700 font-semibold mt-4">Configuration pour la VM :</p>
+                    <p class="text-slate-700">Pour que Kibana soit accessible depuis votre navigateur hôte, modifiez `/etc/kibana/kibana.yml` :</p>
+                    <div class="code-block">
+<pre><code class="language-bash">sudo nano /etc/kibana/kibana.yml
+</code></pre>
+                    </div>
+                    <p class="text-slate-700">Décommentez (ou ajoutez) la ligne `server.host` et mettez-la à `"0.0.0.0"` (avec les guillemets) :</p>
+                    <div class="code-block"><pre><code>server.host: "0.0.0.0"</code></pre></div>
+                    <p class="text-slate-700 mt-2">Assurez-vous aussi que l'URL d'Elasticsearch est correcte (elle devrait l'être si vous utilisez le token) :</p>
+                    <div class="code-block"><pre><code>elasticsearch.hosts: ["https://localhost:9200"]</code></pre></div>
+                    
+                    <p class="mt-4">Nous allons lier Kibana à Elasticsearch en utilisant un "token d'enrôlement".</p>
+                    <div class="code-block">
+<pre><code class="language-bash"># Sur le serveur Elasticsearch, créez un token pour Kibana (expire en 30 min)
+sudo /usr/share/elasticsearch/bin/elasticsearch-create-enrollment-token -s kibana
+</code></pre>
+                    </div>
+                    <p class="mt-4">Copiez le long token généré. Ensuite, démarrez Kibana. Il vous demandera le token lors de la première visite sur `http://localhost:5601`.</p>
+                    <p class="mt-2">Alternativement, si Kibana a déjà démarré, modifiez `/etc/kibana/kibana.yml` pour ajouter l'URL d'Elasticsearch (en HTTPS) et redémarrez-le.</p>
+                    <div class="code-block">
+<pre><code class="language-bash">sudo systemctl start kibana
+sudo systemctl enable kibana
+</code></pre>
+                    </div>
+                    <!-- MODIFIÉ : Utilisation de l'IP de la VM -->
+                    <p class="mt-4">Accédez à `http://[IP_DE_LA_VM]:5601` depuis le navigateur de votre machine **hôte**. Connectez-vous avec l'utilisateur `elastic` et votre mot de passe.</p>
+
+                    <!-- AJOUT : Checkpoint de fin de chapitre 4 -->
+                    <h2 class="text-3xl font-bold tracking-tight text-slate-900 mt-12">4.3. Checkpoint : Test de la Stack Complète</h2>
+                    <p class="text-lg text-slate-600">Avant de passer à l'ingestion de données, vérifions que tout communique.</p>
+                    <div class="focus-box border-l-green-500">
+                        <h3 class="text-xl font-semibold text-green-900 mb-4">✅ Objectif de Validation</h3>
+                        <p class="text-slate-700 mb-4">Nous allons utiliser les **Dev Tools** de Kibana (notre interface de test) pour insérer manuellement un document dans Elasticsearch. Si cela fonctionne, notre stack est prête.</p>
+                        <ol class="list-decimal list-inside space-y-2 text-slate-700">
+                            <!-- MODIFIÉ : Utilisation de l'IP de la VM -->
+                            <li>Ouvrez Kibana (`http://[IP_DE_LA_VM]:5601`) dans votre navigateur **hôte**.</li>
+                            <li>Cliquez sur le menu ☰ en haut à gauche.</li>
+                            <li>Descendez tout en bas, dans la section "Management", cliquez sur **"Dev Tools"**.</li>
+                            <li>Dans la console de gauche, tapez cette commande et cliquez sur le bouton "Play" (triangle) :</li>
+                        </ol>
+                        <div class="code-block mt-4">
+<pre><code class="language-json">POST /test-index/_doc/1
+{
+  "message": "Ma stack Elastic fonctionne !",
+  "timestamp": "2025-11-03T14:00:00Z"
+}
+</code></pre>
+                        </div>
+                        <p class="text-slate-700 mt-4"><strong>Résultat attendu :</strong> Vous devriez voir un résultat `"created": true` dans la fenêtre de droite. Si c'est le cas, félicitations ! Elasticsearch et Kibana sont installés, sécurisés et communiquent.</p>
+                    </div>
+                </section>
+                
+                <!-- 5. Logstash -->
+                <section id="logstash" class="content-section space-y-6 hidden">
+                    <h1 class="text-4xl font-bold tracking-tight text-slate-900">5. Logstash - Le Pipeline de Données</h1>
+                    <p class="text-lg text-slate-600">Logstash est le "couteau suisse" de l'ingestion. Il reçoit, transforme et envoie les données.</p>
+                    
+                    <h3 class="text-2xl font-semibold text-sky-900 mt-8">5.1. Théorie : Le Pipeline Logstash</h3>
+                    <p class="text-slate-700 mb-4">Un pipeline Logstash a trois étapes :</p>
+                    <div class="flex flex-col md:flex-row justify-between items-center text-center space-y-4 md:space-y-0">
+                        <div class="p-4 bg-sky-50 rounded-lg w-full md:w-1/3">
+                            <div class="text-5xl">📥</div>
+                            <h4 class="font-semibold text-sky-800 text-lg">1. Input</h4>
+                            <p class="text-sm text-slate-600">La source des données (ex: `file`, `beats`, `tcp`).</p>
+                        </div>
+                        <div class="diagram-arrow">→</div>
+                        <div class="p-4 bg-green-50 rounded-lg w-full md:w-1/3">
+                            <div class="text-5xl">⚙️</div>
+                            <h4 class="font-semibold text-green-800 text-lg">2. Filter</h4>
+                            <p class="text-sm text-slate-600">Transformer les données (ex: `grok`, `mutate`, `date`).</p>
+                        </div>
+                        <div class="diagram-arrow">→</div>
+                        <div class="p-4 bg-indigo-50 rounded-lg w-full md:w-1/3">
+                            <div class="text-5xl">📤</div>
+                            <h4 class="font-semibold text-indigo-800 text-lg">3. Output</h4>
+                            <p class="text-sm text-slate-600">La destination des données (ex: `elasticsearch`).</p>
+                        </div>
+                    </div>
+
+                    <!-- AJOUT : Explication Grok -->
+                    <h3 class="text-2xl font-semibold text-sky-900 mt-8">5.2. Théorie : Comprendre le Filtre "Grok"</h3>
+                    <p class="text-slate-700 mb-4">Grok est le filtre le plus puissant. Il utilise des expressions régulières (patterns) pour extraire des champs structurés à partir d'un message de log non structuré.</p>
+                    
+                    <h4 class="text-lg font-semibold text-slate-800 mt-4">Étape 1 : Log simple</h4>
+                    <p class="text-slate-700">Log : <code class="text-sm">"127.0.0.1 GET 200"</code></p>
+                    <p class="text-slate-700">Pattern Grok : <code class="text-sm">"%{IP:client_ip} %{WORD:methode} %{NUMBER:code_http}"</code></p>
+                    <p class="text-slate-700">Résultat (JSON) :</p>
+                    <div class="code-block">
+<pre><code class="language-json">{
+  "client_ip": "127.0.0.1",
+  "methode": "GET",
+  "code_http": "200"
+}
+</code></pre>
+                    </div>
+
+                    <h4 class="text-lg font-semibold text-slate-800 mt-4">Étape 2 : Le pattern `%{COMBINEDAPACHELOG}`</h4>
+                    <p class="text-slate-700">Notre log Apache est complexe : <code class="text-sm">127.0.0.1 - - [03/Nov/2025:14:30:15 +0000] "GET / HTTP/1.1" 200 3380...</code></p>
+                    <p class="text-slate-700">Heureusement, Logstash fournit un pattern pré-défini, `%{COMBINEDAPACHELOG}`, qui décompose automatiquement ce log en champs pertinents (`clientip`, `timestamp`, `verb`, `request`, `response`, `bytes`, etc.).</p>
+
+                    <h4 class="text-lg font-semibold text-slate-800 mt-4">Étape 3 : Débogage Grok</h4>
+                    <p class="text-slate-700">Si votre pattern ne fonctionne pas (vous obtenez un tag `_grokparsefailure`), utilisez le **Grok Debugger** dans Kibana (Dev Tools) pour tester en direct :</p>
+                    <div class="code-block">
+<pre><code class="language-json">POST _grok/debugger
+{
+  "pattern": "%{COMBINEDAPACHELOG}",
+  "text": "127.0.0.1 - - [03/Nov/2025:14:30:15 +0000] \"GET / HTTP/1.1\" 200 3380 \"-\" \"curl/7.68.0\""
+}
+</code></pre>
+                    </div>
+                    
+                    <h3 class="text-2xl font-semibold text-sky-900 mt-8">5.3. Pratique : Ingestion des Logs Apache</h3>
+                    <p>Installez Logstash (`sudo apt-get install logstash`) et créez le fichier `/etc/logstash/conf.d/01-apache.conf` :</p>
+                    <div class="code-block">
+<pre><code class="language-conf"># 1. INPUT (Lire le fichier de log Apache)
+input {
+    file {
+        path => "/var/log/apache2/access.log"
+        start_position => "beginning"
+        sincedb_path => "/dev/null" # Pour les tests, relire le fichier à chaque fois
+    }
+}
+
+# 2. FILTER (Parser le log)
+filter {
+    # Utiliser le pattern Grok pré-défini
+    grok {
+        match => { "message" => "%{COMBINEDAPACHELOG}" }
+    }
+    # Utiliser la date du log, pas la date d'ingestion
+    date {
+        match => [ "timestamp" , "dd/MMM/yyyy:HH:mm:ss Z" ]
+    }
+    # Convertir les codes de réponse en nombres
+    mutate {
+        convert => {
+            "response" => "integer"
+            "bytes" => "integer"
+        }
+    }
+}
+
+# 3. OUTPUT (Envoyer à Elasticsearch v8.x sécurisé)
+output {
+    elasticsearch {
+         # MODIFIÉ : Utilisation de localhost (Logstash et ES sont sur la même VM)
+         # Bien que [IP_DE_LA_VM] fonctionnerait, localhost est plus direct.
+         hosts => ["https://localhost:9200"] 
+         index => "apache-logstash-%{+YYYY.MM.dd}"
+         user => "elastic"
+         password => "<VOTRE_MOT_DE_PASSE_ELASTIC>"
+         ssl_verification_mode => "none" # Pour test local (certificat auto-signé)
+    }
+    # Afficher aussi en console pour déboguer
+    stdout { 
+         codec => rubydebug 
+    }
+}
+</code></pre>
+                    </div>
+                    
+                    <h4 class="text-lg font-semibold text-slate-800 mt-6">Démarrage et Test (Logstash)</h4>
+                    <p class="text-slate-700">Avant de lancer le service, **toujours tester la configuration** :</p>
+                    <div class="code-block">
+<pre><code class="language-bash"># Test de syntaxe
+sudo -u logstash /usr/share/logstash/bin/logstash --path.settings /etc/logstash -t -f /etc/logstash/conf.d/01-apache.conf
+# Doit retourner "Configuration OK"
+</code></pre>
+                    </div>
+                    <p class="text-slate-700 mt-4">Démarrez Logstash et donnez-lui la permission de lire les logs Apache :</p>
+                    <div class="code-block">
+<pre><code class="language-bash">sudo usermod -aG adm logstash
+sudo systemctl restart logstash
+sudo systemctl enable logstash
+</code></pre>
+                    </div>
+
+                    <!-- AJOUT : Checkpoint Chapitre 5 -->
+                    <div class="focus-box border-l-green-500 mt-6">
+                        <h3 class="text-xl font-semibold text-green-900 mb-4">✅ Checkpoint Chapitre 5</h3>
+                        <!-- MODIFIÉ : Utilisation de l'IP de la VM -->
+                        <p class="text-slate-700 mb-4">Après avoir généré du trafic Apache (`curl http://localhost/page-test` dans la VM), allez dans Kibana (`http://[IP_DE_LA_VM]:5601`) -> Discover (vous devrez créer un Index Pattern `apache-logstash-*`) :</p>
+                        <ul class="list-disc list-inside space-y-2 text-slate-700">
+                            <li>Vous devriez voir vos nouveaux logs apparaître.</li>
+                            <li>Dans la liste des champs à gauche, vous devriez voir `clientip`, `response`, `verb`, etc.</li>
+                            <li><strong>Validation :</strong> Si vous ne voyez PAS un champ `tags` avec la valeur `_grokparsefailure`, votre parsing a réussi !</li>
+                        </ul>
+                    </div>
+                </section>
+                
+                <!-- 6. La Famille Beats -->
+                <section id="beats" class="content-section space-y-6 hidden">
+                    <h1 class="text-4xl font-bold tracking-tight text-slate-900">6. La Famille Beats</h1>
+                    <p class="text-lg text-slate-600">Logstash est puissant mais lourd (il utilise Java). Pour la simple collecte, les Beats (écrits en Go) sont plus légers et préférés.</p>
+
+                    <h3 class="text-2xl font-semibold text-sky-900 mt-8">6.1. Filebeat (Le collecteur de logs)</h3>
+                    <p class="text-slate-700">**Rôle :** L'agent de collecte de logs le plus populaire. Il remplace l'étape `input { file }` de Logstash. Il est léger et s'installe sur tous vos serveurs.</p>
+                    <p class="text-slate-700 mt-2">**Cas d'usage :** Collecter `/var/log/syslog` de 500 serveurs et les envoyer à un Logstash central (ou directement à ES).</p>
+                    <p class="text-slate-700 mt-4"><strong>Concept Clé : Les Modules (ex: `filebeat modules enable apache`)</strong></p>
+                    <p class="text-slate-700">Les modules sont des configurations pré-faites qui incluent :</p>
+                    <ul class="list-disc list-inside space-y-2 text-slate-600">
+                        <li>La configuration de Filebeat (où trouver les logs).</li>
+                        <li>Un pipeline d'ingestion (le parsing Grok, mais côté Elasticsearch).</li>
+                        <li>Des dashboards Kibana pré-construits.</li>
+                    </ul>
+                    <p class="text-slate-700 mt-2">C'est la méthode "facile" pour ingérer des logs standards (Nginx, MySQL, System...).</p>
+
+                    <h3 class="text-2xl font-semibold text-sky-900 mt-8">6.2. Metricbeat (Le collecteur de métriques)</h3>
+                    <p class="text-slate-700">**Rôle :** Collecte les métriques système et de services.</p>
+                    <div class="focus-box">
+                        <h3 class="text-xl font-semibold text-sky-900 mb-4">Focus : Métriques vs Logs</h3>
+                        <ul class="space-y-3 mt-4">
+                            <li class="flex items-start">
+                                <span class="text-2xl mr-3">🧾</span>
+                                <div>
+                                    <h4 class="font-semibold text-slate-800">Logs (Filebeat)</h4>
+                                    <p class="text-slate-600 text-sm">Un enregistrement d'un **événement discret**. (Ex: "Utilisateur 'admin' connecté"). Vous les *filtrez*.</p>
+                                </div>
+                            </li>
+                            <li class="flex items-start">
+                                <span class="text-2xl mr-3">🌡️</span>
+                                <div>
+                                    <h4 class="font-semibold text-slate-800">Métriques (Metricbeat)</h4>
+                                    <p class="text-slate-600 text-sm">Une **mesure numérique** à un instant T. (Ex: "CPU à 35%"). Vous les *agrégez* (moyenne, max).</p>
+                                </div>
+                            </li>
+                        </ul>
+                    </div>
+                    <p class="text-slate-700 mt-4"><strong>Cas d'usage :** Collecter le CPU, la RAM, l'usage disque de tous vos serveurs, ainsi que les métriques de services (ex: nombre de connexions à MySQL).</p>
+
+                    <h3 class="text-2xl font-semibold text-sky-900 mt-8">6.3. Packetbeat (Le sniffer réseau)</h3>
+                    <p class="text-slate-700">**Rôle :** Un "sniffer" réseau (comme Wireshark) qui analyse le trafic passivement pour reconstituer les protocoles (HTTP, DNS, SQL...).</p>
+                    <p class="text-slate-700 mt-2">**Cas d'usage :** Mesurer les performances (ex: `GET /login` a pris `25ms`) et la sécurité (ex: voir les requêtes `SELECT * FROM users` suspectes).</p>
+                    
+                    <h3 class="text-2xl font-semibold text-sky-900 mt-8">6.4. Les Autres Beats</h3>
+                    <ul class="list-disc list-inside space-y-2 text-slate-600">
+                        <li><strong>Heartbeat :</strong> Monitoring de disponibilité (Uptime). Il "ping" vos services (HTTP, TCP) pour vérifier qu'ils sont en ligne.</li>
+                        <li><strong>Auditbeat :</strong> Audit de sécurité. Surveille l'intégrité des fichiers (ex: "Qui a modifié `/etc/passwd` ?") et les appels système.</li>
+                        <li><strong>Winlogbeat :</strong> Collecte les journaux d'événements Windows (Event Logs).</li>
+                    </ul>
+
+                    <h3 class="text-2xl font-semibold text-sky-900 mt-8">6.5. Comparaison : Logstash vs Filebeat</h3>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div class="p-4 bg-slate-50 rounded-lg border border-slate-200">
+                            <h4 class="font-semibold text-lg text-green-700">Filebeat (Agent Léger / "Shipper")</h4>
+                            <ul class="list-disc list-inside text-sm text-slate-600 mt-2 space-y-1">
+                                <li>Écrit en Go : **Très léger**, faible CPU/RAM.</li>
+                                <li>S'installe sur **chaque** serveur.</li>
+                                <li>Rôle : Collecter et envoyer.</li>
+                                <li>Transformation limitée (peut parser du JSON simple).</li>
+                            </ul>
+                        </div>
+                        <div class="p-4 bg-slate-50 rounded-lg border border-slate-200">
+                            <h4 class="font-semibold text-lg text-orange-700">Logstash (Processeur Lourd / "Processor")</h4>
+                            <ul class="list-disc list-inside text-sm text-slate-600 mt-2 space-y-1">
+                                <li>Écrit en Java : **Lourd**, nécessite une JVM.</li>
+                                <li>S'installe sur un **serveur central**.</li>
+                                <li>Rôle : Recevoir, transformer, filtrer, enrichir.</li>
+                                <li>Transformation **très puissante** (Grok, GeoIP, mutations...).</li>
+                            </ul>
+                        </div>
+                    </div>
+                    
+                    <!-- AJOUT : Comparaison des Beats -->
+                    <h3 class="text-2xl font-semibold text-sky-900 mt-8">6.6. Comparaison : Quel Beat choisir ?</h3>
+                    <table class="w-full border border-slate-300 text-left text-sm">
+                        <thead class="bg-slate-100">
+                            <tr>
+                                <th class="p-2 border-r">Beat</th>
+                                <th class="p-2 border-r">Type de Donnée</th>
+                                <th class="p-2">Question à laquelle il répond</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr class="border-b"><td class="p-2 border-r font-semibold">Filebeat</td><td class="p-2 border-r">Logs (Lignes de texte)</td><td class="p-2">"Qu'est-il arrivé ?" (ex: Erreur 404)</td></tr>
+                            <tr class="border-b"><td class="p-2 border-r font-semibold">Metricbeat</td><td class="p-2 border-r">Métriques (Nombres)</td><td class="p-2">"Comment va le système ?" (ex: CPU à 80%)</td></tr>
+                            <tr class="border-b"><td class="p-2 border-r font-semibold">Packetbeat</td><td class="p-2 border-r">Réseau (Trames)</td><td class="p-2">"Combien de temps a pris la requête ?" (ex: 120ms)</td></tr>
+                            <tr class="border-b"><td class="p-2 border-r font-semibold">Heartbeat</td><td class="p-2 border-r">Disponibilité (Up/Down)</td><td class="p-2">"Le service est-il en ligne ?" (ex: Down)</td></tr>
+                            <tr class="border-b"><td class="p-2 border-r font-semibold">Auditbeat</td><td class="p-2 border-r">Audit (Sécurité)</td><td class="p-2">"Qui a modifié ce fichier ?" (ex: 'root')</td></tr>
+                            <tr class="border-b"><td class="p-2 border-r font-semibold">Winlogbeat</td><td class="p-2 border-r">Logs Événements Windows</td><td class="p-2">"Qu'est-il arrivé sur mon Active Directory ?"</td></tr>
+                        </tbody>
+                    </table>
+
+                    <!-- AJOUT : Checkpoint Chapitre 6 -->
+                    <div class="focus-box border-l-green-500 mt-6">
+                        <h3 class="text-xl font-semibold text-green-900 mb-4">✅ Checkpoint Chapitre 6</h3>
+                        <p class="text-slate-700 mb-4">À ce stade, si vous avez installé Filebeat (Module System) et Metricbeat, vous devriez avoir plusieurs sources de données qui arrivent dans Elasticsearch.</p>
+                        <p class="text-slate-700">Allez dans **Menu ☰ -> Stack Management -> Index Patterns**. Vous devriez être capable de créer au moins trois patterns différents :</p>
+                        <ul class="list-disc list-inside space-y-2 text-slate-700">
+                            <li>`apache-logstash-*` (de Logstash)</li>
+                            <li>`filebeat-*` (des modules Filebeat)</li>
+                            <li>`metricbeat-*` (de Metricbeat)</li>
+                        </ul>
+                    </div>
+                </section>
+                
+                <!-- 7. Kibana -->
+                <section id="kibana" class="content-section space-y-6 hidden">
+                    <h1 class="text-4xl font-bold tracking-tight text-slate-900">7. Kibana - Visualisation et Dashboards</h1>
+                    <p class="text-lg text-slate-600">Maintenant que nous avons des logs et des métriques, apprenons à les explorer dans Kibana, l'interface de visualisation.</p>
+                    
+                    <h3 class="text-2xl font-semibold text-sky-900 mt-8">Théorie : Les 4 Piliers de Kibana</h3>
+                    <ul class="list-decimal list-inside space-y-2 text-slate-600 mt-2">
+                        <li><strong>Discover :</strong> L'outil de recherche et de filtrage pour inspecter les logs bruts (les "documents").</li>
+                        <li><strong>Visualize :</strong> L'outil pour créer un graphique (camembert, histogramme...) à partir d'une recherche.</li>
+                        <li><strong>Dashboard :</strong> Une collection de plusieurs visualisations assemblées sur une seule page.</li>
+                        <li><strong>Dev Tools :</strong> Une console pour envoyer des requêtes brutes à l'API d'Elasticsearch (très utile pour le débogage).</li>
+                    </ul>
+
+                    <!-- AJOUT : Théorie Index Patterns -->
+                    <h3 class="text-2xl font-semibold text-sky-900 mt-8">7.0. Théorie : Index Patterns & Données Temporelles</h3>
+                    <div class="focus-box">
+                        <h4 class="text-lg font-semibold text-slate-800">Index Patterns</h4>
+                        <p class="text-slate-700 mb-2">C'est la façon dont Kibana "sait" quels index Elasticsearch interroger. C'est la première chose à créer.</p>
+                        <ul class="list-disc list-inside text-slate-600 text-sm">
+                            <li>Pattern `apache-logstash-*` : Interroge `apache-logstash-2025.11.03`, `apache-logstash-2025.11.04`, etc.</li>
+                            <li>Pattern `metricbeat-*` : Interroge tous les index de Metricbeat.</li>
+                        </ul>
+                        <h4 class="text-lg font-semibold text-slate-800 mt-4">Données Temporelles (Time-based data)</h4>
+                        <p class="text-slate-700 mb-2">La plupart des données dans Elastic sont temporelles. Kibana est centré sur le **Time Picker** (en haut à droite), qui vous permet de filtrer la période (ex: "Last 15 minutes", "Last 7 days").</p>
+                    </div>
+
+                    <h3 class="text-2xl font-semibold text-sky-900 mt-8">7.1. Pratique : Discover (Explorer)</h3>
+                    <p class="text-slate-700">C'est votre loupe pour chercher dans les logs.</p>
+                    <!-- AJOUT : Guidage UI -->
+                    <ol class="list-decimal list-inside space-y-2 text-slate-700 mt-4">
+                        <!-- MODIFIÉ : Utilisation de l'IP de la VM -->
+                        <li>Cliquez sur le menu ☰ en haut à gauche (dans Kibana sur `http://[IP_DE_LA_VM]:5601`).</li>
+                        <li>Dans la section "Analytics", cliquez sur **Discover**.</li>
+                        <li>En haut à gauche, sous la barre de recherche, assurez-vous que votre index pattern (ex: `apache-logstash-*`) est sélectionné.</li>
+                        <li>Assurez-vous que le Time Picker (haut à droite) est réglé sur une période où vous avez des données (ex: "Today").</li>
+                    </ol>
+                    <p class="text-slate-700 mt-4">La barre de recherche utilise le **KQL (Kibana Query Language)**. C'est très intuitif. Essayez ces requêtes :</p>
+                    <div class="code-block">
+<pre><code># Trouver toutes les erreurs 404
+response: 404
+
+# Trouver les requêtes d'une IP spécifique (ou "::1" pour localhost)
+clientip: "127.0.0.1"
+
+# Combiner des filtres (requêtes GET qui n'étaient PAS des 404)
+verb: "GET" AND NOT response: 404
+
+# Recherche numérique
+bytes > 1000
+</code></pre>
+                    </div>
+                    
+                    <h3 class="text-2xl font-semibold text-sky-900 mt-8">7.2. Pratique : Visualize & Dashboard</h3>
+                    <p class="text-slate-700">Créons un camembert montrant la répartition de nos codes de réponse HTTP.</p>
+                    <ol class="list-decimal list-inside space-y-2 text-slate-700 mt-4">
+                        <li>Allez dans le menu ☰ -> **Visualize Library** -> "Create visualization".</li>
+                        <li>Choisissez "Pie" (Camembert).</li>
+                        <li>Choisissez la source de données `apache-logstash-*`.</li>
+                        <li>Dans le panneau de droite "Buckets" (Compartiments), cliquez sur "Add" -> "Slice".</li>
+                        <li>**Agrégation :** "Terms" (Termes).</li>
+                        <li>**Field (Champ) :** `response.keyword` (Le `.keyword` est crucial : il signifie "valeur exacte", et non le texte analysé).</li>
+                        <li>Cliquez sur "Update".</li>
+                    </ol>
+                    <p class="text-slate-700 mt-4">Vous avez un camembert ! Sauvegardez-le ("Codes de réponse").</p>
+                    <p class="text-slate-700 mt-2">Ensuite, allez dans le menu ☰ -> **Dashboard** -> "Create dashboard". Cliquez sur "Add from library" et ajoutez votre camembert. Vous avez créé votre premier dashboard !</p>
+                </section>
+                
+                <!-- 8. Cas Pratiques -->
+                <section id="cas-pratiques" class="content-section space-y-6 hidden">
+                    <h1 class="text-4xl font-bold tracking-tight text-slate-900">8. Cas Pratiques & Projet Final</h1>
+                    <p class="text-lg text-slate-600">Appliquons tout ce que nous avons appris à un projet concret : analyser des données ouvertes (Open Data).</p>
+
+                    <h3 class="text-2xl font-semibold text-sky-900 mt-8">Projet : Analyse des Données de Transport Public</h3>
+                    <p class="text-slate-700"><strong>Objectif :</strong> Utiliser Logstash pour importer un fichier CSV de données de transport (ex: ponctualité des bus/métros) et créer un dashboard de "Smart City".</p>
+                    <p class="text-slate-700"><strong>Dataset :</strong> Un fichier CSV (ex: `ponctualite.csv`) que vous téléchargez depuis un portail Open Data (ex: data.gouv.fr).</p>
+                    <p class="text-slate-700"><strong>Exemple de CSV :</strong></p>
+                    <div class="code-block text-sm">
+<pre><code>timestamp,ligne,station,coordonnees,retard_secondes
+2025-11-03T08:30:15,M1,Chatelet,"48.858, 2.347",30
+2025-11-03T08:31:02,Bus 69,Louvre,"48.860, 2.337",120
+2025-11-03T08:32:10,M1,Gare de Lyon,"48.844, 2.373",0
+</code></pre>
+                    </div>
+                    
+                    <h4 class="text-lg font-semibold text-slate-800 mt-6">Template Logstash (Projet)</h4>
+                    <p class="text-slate-700">Créez un `02-transport.conf` :</p>
+                    <div class="code-block">
+<pre><code class="language-ruby">input {
+  file {
+    path => "/chemin/vers/votre/ponctualite.csv"
+    start_position => "beginning"
+    sincedb_path => "/dev/null" # Pour relire le fichier à chaque test
+    # ignore_older => 86400 # En production, pour ne pas relire les anciens fichiers
+  }
+}
+
+filter {
+  # ... (filtres csv, mutate, date) ...
+  
+  # Gérer la géolocalisation
+  # Le champ "coordonnees" (ex: "48.858, 2.347") doit être séparé
+  grok {
+    match => { "coordonnees" => "%{NUMBER:lat}, %{NUMBER:lon}" }
+  }
+  # Créer le champ geoip.location au format "lat, lon"
+  mutate {
+    add_field => { "[geoip][location]" => "%{lat}, %{lon}" }
+    # Convertir lat et lon en float pour ES
+    convert => {
+        "[geoip][location]" => "float"
+    }
+  }
+  
+  # Nettoyer les champs inutiles
+  mutate {
+    remove_field => ["message", "path", "host", "lat", "lon", "coordonnees"]
+  }
+}
+
+output {
+  elasticsearch {
+    # MODIFIÉ : Utilisation de localhost (Logstash et ES sont sur la même VM)
+    hosts => ["https://localhost:9200"]
+    index => "transport-data" # Un seul index pour ce projet
+    user => "elastic"
+    password => "<VOTRE_MOT_DE_PASSE_ELASTIC>"
+    ssl_verification_mode => "none"
+  }
+  stdout { codec => rubydebug }
+}
+</code></pre>
+                    </div>
+
+                    <h4 class="text-lg font-semibold text-slate-800 mt-6">Objectifs du Dashboard Kibana</h4>
+                    <p class="text-slate-700">Créez un dashboard "Smart City" avec :</p>
+                    <ul class="list-disc list-inside space-y-2 text-slate-600">
+                        <li><strong>(Map)</strong> Une carte des stations (utilisant le champ `geoip.location`).</li>
+                        <li><strong>(Line Chart)</strong> Une timeline du nombre de passages par heure.</li>
+                        <li><strong>(Bar Chart)</strong> Un Top 10 des lignes les plus fréquentées.</li>
+                        <li><strong>(Histogram)</strong> Une distribution des retards (pour voir si les retards sont de 30s ou 10min).</li>
+                        <li><strong>(Metric)</strong> Le retard moyen (`Average` sur `retard_secondes`).</li>
+                    </ul>
+                </section>
+                
+                <!-- 10. Quiz Final -->
+                <section id="quiz" class="content-section space-y-6 hidden">
+                    <h1 class="text-4xl font-bold tracking-tight text-slate-900">10. Quiz Final</h1>
+                    <p class="text-lg text-slate-600">Testez vos connaissances sur les concepts fondamentaux de la stack Elastic.</p>
+                    
+                    <div id="quiz-container" class="mt-8 space-y-6">
+                        <!-- Les questions seront injectées ici par le JS -->
+                    </div>
+                    
+                    <button id="quiz-submit" class="bg-sky-600 text-white font-semibold px-6 py-3 rounded-lg shadow-md hover:bg-sky-700 transition-colors">Valider mes réponses</button>
+                    
+                    <div id="quiz-results" class="mt-6 hidden">
+                        <h3 class="text-2xl font-semibold">Résultats : <span id="quiz-score" class="text-sky-700"></span></h3>
+                        <p id="quiz-feedback" class="text-lg mt-2"></p>
+                        <div id="quiz-details" class="mt-4 space-y-2"></div>
+                    </div>
+                </section>
+
+                <!-- AJOUT : Annexe Dépannage VM -->
+                <section id="annexe-vm" class="content-section space-y-6 hidden">
+                    <h1 class="text-4xl font-bold tracking-tight text-slate-900">Annexe : Dépannage de la VM</h1>
+                    <p class="text-lg text-slate-600">Problèmes courants spécifiques à notre environnement VirtualBox.</p>
+
+                    <h3 class="text-2xl font-semibold text-sky-900 mt-8">Problème 1 : "VT-x is not available" au démarrage de la VM</h3>
+                    <ul class="list-disc list-inside space-y-2 text-slate-600">
+                        <li><strong>Cause :</strong> La virtualisation matérielle n'est pas activée dans le BIOS/UEFI de votre PC.</li>
+                        <li><strong>Solution :</strong> Redémarrez votre PC, entrez dans le BIOS (touche F2, F12, Suppr...), trouvez "Intel VT-x" ou "AMD-V" et "Activez" (Enable) l'option.</li>
+                    </ul>
+
+                    <h3 class="text-2xl font-semibold text-sky-900 mt-8">Problème 2 : VM très lente</h3>
+                    <ul class="list-disc list-inside space-y-2 text-slate-600">
+                        <li><strong>Cause 1 :</strong> Pas assez de RAM allouée. Assurez-vous d'avoir donné au moins 4096 Mo à la VM.</li>
+                        <li><strong>Cause 2 (Windows) :</strong> Hyper-V est activé et entre en conflit avec VirtualBox.</li>
+                        <li><strong>Solution (Hyper-V) :</strong> Ouvrez PowerShell en tant qu'administrateur et exécutez `dism.exe /Online /Disable-Feature:Microsoft-Hyper-V-All`, puis redémarrez.</li>
+                    </ul>
+
+                    <h3 class="text-2xl font-semibold text-sky-900 mt-8">Problème 3 : Impossible d'accéder à Kibana/Apache depuis le navigateur hôte</h3>
+                    <p class="text-slate-700">Suivez ces étapes de débogage :</p>
+                    <ol class="list-decimal list-inside space-y-2 text-slate-700">
+                        <li><strong>Dans la VM :</strong> Vérifiez l'IP. Avez-vous la bonne ?
+                            <div class="code-block text-sm"><pre><code>ip addr show</code></pre></div>
+                        </li>
+                        <li><strong>Dans la VM :</strong> Le service écoute-t-il sur la bonne interface ?
+                            <div class="code-block text-sm"><pre><code>sudo netstat -tlnp | grep 5601</code></pre></div>
+                            <p class="text-sm">Vous DEVEZ voir `0.0.0.0:5601` ou `:::5601`. Si vous voyez `127.0.0.1:5601`, Kibana n'écoute pas à l'extérieur. (Voir Chap 4.2 pour corriger `server.host`).</p>
+                        </li>
+                        <li><strong>Dans la VM :</strong> Le pare-feu est-il activé ? (Il ne devrait pas l'être par défaut).
+                            <div class="code-block text-sm"><pre><code>sudo ufw status</code></pre></div>
+                        </li>
+                        <li><strong>Dans la VM :</strong> Pouvez-vous y accéder depuis la VM elle-même ?
+                            <div class="code-block text-sm"><pre><code>curl http://localhost:5601</code></pre></div>
+                            <p class="text-sm">Si cela échoue, Kibana a un problème. Regardez les logs : `sudo journalctl -u kibana -f`</p>
+                        </li>
+                        <li><strong>Sur l'Hôte :</strong> Vérifiez votre pare-feu Hôte (Windows Defender, etc.) qui pourrait bloquer la connexion sortante vers l'IP de la VM.</li>
+                    </ol>
+                    
+                    <h3 class="text-2xl font-semibold text-sky-900 mt-8">Problème 4 : "VM runs out of disk space" (Plus d'espace disque)</h3>
+                     <ul class="list-disc list-inside space-y-2 text-slate-600">
+                        <li><strong>Cause :</strong> Elasticsearch peut remplir le disque rapidement.</li>
+                        <li><strong>Solution :</strong>
+                            <div class="code-block text-sm">
+<pre><code># Vérifier l'espace
+df -h
+
+# Nettoyer les paquets téléchargés
+sudo apt autoremove && sudo apt autoclean
+</code></pre>
+                            <p class="text-sm mt-2">Si le problème persiste, vous devrez peut-être étendre le disque virtuel dans les paramètres de VirtualBox.</p>
+                        </li>
+                    </ul>
+                </section>
+
+            </div>
+        </main>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            
+            // --- Gestion de la Navigation (Sidebar + Sections) ---
+            const sections = document.querySelectorAll('.content-section');
+            const links = document.querySelectorAll('.sidebar-link');
+            const sidebar = document.getElementById('sidebar');
+            const menuToggle = document.getElementById('menu-toggle');
+            const menuOverlay = document.getElementById('menu-overlay');
+            const mainContent = document.querySelector('main.md\\:ml-72');
+
+            function showSection(hash) {
+                sections.forEach(section => {
+                    if ('#' + section.id === hash) {
+                        section.classList.remove('hidden');
+                    } else {
+                        section.classList.add('hidden');
+                    }
+                });
+                
+                links.forEach(link => {
+                    if (link.getAttribute('href') === hash) {
+                        link.classList.add('active');
+                    } else {
+                        link.classList.remove('active');
+                    }
+                });
+                
+                // Mettre à jour le titre de la page
+                const activeLink = document.querySelector(`.sidebar-link[href="${hash}"]`);
+                if (activeLink) {
+                    document.title = activeLink.innerText + ' - Cours Elastic';
+                }
+
+                // Fermer le menu mobile lors de la navigation
+                if (window.innerWidth < 768) {
+                    sidebar.classList.add('-translate-x-full');
+                    menuOverlay.classList.add('opacity-0', 'hidden');
+                }
+            }
+
+            links.forEach(link => {
+                link.addEventListener('click', function (e) {
+                    e.preventDefault();
+                    const hash = this.getAttribute('href');
+                    if (window.location.hash !== hash) {
+                        history.pushState(null, null, hash);
+                    }
+                    showSection(hash);
+                    // Scroll to top of content area
+                    mainContent.scrollTo(0, 0);
+                });
+            });
+
+            // Gestion du menu mobile
+            menuToggle.addEventListener('click', () => {
+                sidebar.classList.remove('-translate-x-full');
+                menuOverlay.classList.remove('opacity-0', 'hidden');
+            });
+            menuOverlay.addEventListener('click', () => {
+                sidebar.classList.add('-translate-x-full');
+                menuOverlay.classList.add('opacity-0', 'hidden');
+            });
+
+            // Initial section load
+            const initialHash = window.location.hash || '#intro';
+            showSection(initialHash);
+
+            // Handle browser back/forward
+            window.addEventListener('popstate', () => {
+                showSection(window.location.hash || '#intro');
+            });
+
+            // --- Gestion des Blocs de Code (Copie) ---
+            document.querySelectorAll('.code-block').forEach(block => {
+                const pre = block.querySelector('pre');
+                // Gérer les <pre><code> et les <pre> directs
+                const codeElement = pre ? (pre.querySelector('code') || pre) : block;
+                const code = codeElement.innerText;
+                
+                const copyBtn = document.createElement('button');
+                copyBtn.className = 'copy-btn';
+                copyBtn.innerText = 'Copier';
+                
+                copyBtn.addEventListener('click', () => {
+                    const textarea = document.createElement('textarea');
+                    textarea.value = code;
+                    textarea.style.position = 'fixed';
+                    textarea.style.opacity = 0;
+                    document.body.appendChild(textarea);
+                    textarea.select();
+                    try {
+                        document.execCommand('copy');
+                        copyBtn.innerText = 'Copié !';
+                    } catch (err) {
+                        copyBtn.innerText = 'Erreur';
+                    }
+                    document.body.removeChild(textarea);
+                    
+                    setTimeout(() => {
+                        copyBtn.innerText = 'Copier';
+                    }, 2000);
+                });
+                
+                block.appendChild(copyBtn);
+            });
+
+            // --- Gestion du Quiz ---
+            const quizContainer = document.getElementById('quiz-container');
+            const quizSubmit = document.getElementById('quiz-submit');
+            const quizResults = document.getElementById('quiz-results');
+            const quizScore = document.getElementById('quiz-score');
+            const quizFeedback = document.getElementById('quiz-feedback');
+            const quizDetails = document.getElementById('quiz-details');
+
+            const questions = [
+                {
+                    question: "Quel composant est le 'cœur' de la stack, responsable du stockage et de l'indexation ?",
+                    answers: { a: "Logstash", b: "Kibana", c: "Elasticsearch", d: "Filebeat" },
+                    correct: "c"
+                },
+                {
+                    question: "Quel composant est un agent léger (écrit en Go) conçu pour collecter des logs sur les serveurs clients ?",
+                    answers: { a: "Logstash", b: "Filebeat", c: "Elasticsearch", d: "Kibana" },
+                    correct: "b"
+                },
+                {
+                    question: "Vous avez un log `[ERROR] DB Timeout`. Quel type de champ utiliseriez-vous pour le champ `status` afin de rechercher 'ERROR' ?",
+                    answers: { a: "text", b: "keyword" },
+                    correct: "b"
+                },
+                {
+                    question: "Qu'est-ce que le filtre 'Grok' dans Logstash ?",
+                    answers: { a: "Un moyen de compresser les logs", b: "Un moyen de parser du texte non structuré en champs", c: "Un moyen de crypter les données", d: "Un moyen d'envoyer des alertes" },
+                    correct: "b"
+                },
+                {
+                    question: "Votre cluster est 'Jaune' (Yellow). Qu'est-ce que cela signifie le plus probablement ?",
+                    answers: { a: "Tout va bien", b: "Un shard principal est manquant, vos données sont incomplètes", c: "Un shard de réplique n'a pas pu être alloué (ex: 1 seul nœud)", d: "Kibana est déconnecté" },
+                    correct: "c"
+                }
+            ];
+
+            // Afficher les questions
+            questions.forEach((q, i) => {
+                const questionDiv = document.createElement('div');
+                questionDiv.className = 'p-4 bg-white rounded-lg shadow border border-slate-200';
+                
+                let answersHtml = '<div class="mt-3 space-y-2">';
+                for (const [key, value] of Object.entries(q.answers)) {
+                    answersHtml += `
+                        <label class="block">
+                            <input type="radio" name="question${i}" value="${key}" class="mr-2">
+                            ${value}
+                        </label>
+                    `;
+                }
+                answersHtml += '</div>';
+                
+                questionDiv.innerHTML = `
+                    <p class="font-semibold text-slate-800">${i + 1}. ${q.question}</p>
+                    ${answersHtml}
+                `;
+                quizContainer.appendChild(questionDiv);
+            });
+
+            // Valider le quiz
+            quizSubmit.addEventListener('click', () => {
+                let score = 0;
+                quizDetails.innerHTML = '';
+                
+                questions.forEach((q, i) => {
+                    const selected = document.querySelector(`input[name="question${i}"]:checked`);
+                    const detail = document.createElement('div');
+                    detail.className = 'p-3 rounded-md';
+
+                    if (selected) {
+                        if (selected.value === q.correct) {
+                            score++;
+                            detail.classList.add('bg-green-100', 'border', 'border-green-300');
+                            detail.innerHTML = `<span class="font-semibold text-green-700">Question ${i + 1}: Correct.</span>`;
+                        } else {
+                            detail.classList.add('bg-red-100', 'border', 'border-red-300');
+                            detail.innerHTML = `<span class="font-semibold text-red-700">Question ${i + 1}: Incorrect.</span> La bonne réponse était : <strong>${q.answers[q.correct]}</strong>.`;
+                        }
+                    } else {
+                        detail.classList.add('bg-yellow-100', 'border', 'border-yellow-300');
+                        detail.innerHTML = `<span class="font-semibold text-yellow-700">Question ${i + 1}: Non répondue.</span> La bonne réponse était : <strong>${q.answers[q.correct]}</strong>.`;
+                    }
+                    quizDetails.appendChild(detail);
+                });
+
+                quizScore.innerText = `${score} / ${questions.length}`;
+                if (score === questions.length) {
+                    quizFeedback.innerText = "Parfait ! Vous maîtrisez les concepts clés.";
+                } else if (score >= questions.length / 2) {
+                    quizFeedback.innerText = "Bon travail ! Relisez les points que vous avez manqués.";
+                } else {
+                    quizFeedback.innerText = "Continuez à réviser, certains concepts de base sont à revoir.";
+                }
+                quizResults.classList.remove('hidden');
+            });
+
+        });
+    </script>
+</body>
+</html>
+
+
+
