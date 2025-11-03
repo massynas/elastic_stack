@@ -492,7 +492,77 @@ ping -c 1 google.com # Doit répondre
                         <li><strong>Centraliser</strong> dans un moteur de recherche (Elasticsearch).</li>
                         <li><strong>Visualiser</strong> avec des graphiques (Kibana).</li>
                     </ol>
-                    
+                   <div class="anecdote-box">
+  <h3 class="text-xl font-semibold text-sky-900 mb-2">
+    💡 Le Défi de l'Observabilité dans les Systèmes Distribués
+  </h3>
+
+  <p class="text-slate-700">
+    <span class="font-semibold text-sky-800">L'évolution des architectures logicielles</span>, 
+    passant de systèmes monolithiques centralisés à des écosystèmes de microservices distribués, 
+    a fondamentalement transformé les défis liés à la surveillance et à la maintenance des applications.
+    <br><br>
+
+    Dans une <span class="font-semibold text-sky-800">architecture monolithique</span>, 
+    les journaux d'événements (logs) étaient généralement stockés dans des fichiers sur un seul serveur.  
+    L'analyse et le dépannage, bien que parfois fastidieux, se limitaient souvent à se connecter à ce serveur via SSH 
+    et à utiliser des outils en ligne de commande comme <code>grep</code> pour rechercher des informations pertinentes.  
+    <br>
+    Cette approche est devenue <span class="font-semibold text-red-700">obsolète</span> face à la complexité des environnements modernes.
+    <br><br>
+
+    Les <span class="font-semibold text-sky-800">systèmes distribués</span>, 
+    qui composent l'infrastructure de la plupart des entreprises technologiques aujourd'hui, 
+    sont constitués de centaines, voire de milliers de services interconnectés, 
+    souvent exécutés dans des conteneurs éphémères sur des plateformes cloud.  
+    <br>
+    Dans un tel environnement, les logs sont générés de manière décentralisée sur une multitude de machines virtuelles et de conteneurs 
+    qui peuvent être créés et détruits dynamiquement.  
+    <br>
+    Tenter de suivre les logs en se connectant manuellement à chaque nœud est non seulement <span class="italic">impraticable</span>, 
+    mais <span class="font-semibold text-red-700">impossible</span>.
+    <br><br>
+
+    Ce contexte a donné naissance au concept d’<span class="font-semibold text-sky-800">observabilité</span>, 
+    qui repose sur trois piliers fondamentaux :
+    <span class="italic">les logs</span>, 
+    <span class="italic">les métriques (metrics)</span> et 
+    <span class="italic">les traces (traces)</span>.  
+    <br>
+    La <span class="font-semibold text-sky-800">journalisation centralisée</span> 
+    est la pierre angulaire de cette approche, 
+    car elle permet de collecter, d’agréger et d’analyser l’ensemble des logs générés par une infrastructure en un seul endroit, 
+    offrant une <span class="font-semibold text-sky-800">vue unifiée</span> indispensable pour le monitoring, le dépannage et l’analyse de sécurité.
+    <br><br>
+
+    La <span class="font-semibold text-sky-800">gestion des logs à grande échelle</span> 
+    a cessé d’être une simple tâche d’administration système 
+    pour devenir un <span class="font-semibold text-sky-800">problème complexe d’ingénierie des données en temps réel</span>.  
+    <br>
+    Le défi n’est plus seulement de capturer du texte, 
+    mais de gérer un flux continu de données semi-structurées à très haut volume et à haute vélocité.
+    <br><br>
+
+    Initialement, le problème était <span class="italic">l’accès aux fichiers de logs</span>.  
+    Avec la distribution des systèmes, il est devenu un <span class="italic">problème d’agrégation</span>.  
+    À l’échelle d’entreprises comme <span class="font-semibold text-sky-800">Netflix</span>, 
+    qui traitent des pétaoctets de données, 
+    le défi se transforme en un <span class="font-semibold text-sky-800">problème de traitement de flux (stream processing)</span>.
+    <br><br>
+
+    Le volume de données est tel qu’il ne peut être géré par de simples outils de collecte ;  
+    il nécessite un <span class="font-semibold text-sky-800">pipeline de données robuste</span> 
+    capable d’ingestion, de mise en mémoire tampon (buffering), de transformation et de routage en temps quasi réel.
+    <br><br>
+
+    Par conséquent, les outils et les principes du <span class="font-semibold text-sky-800">Big Data</span>, 
+    tels que <span class="font-semibold text-orange-600">Apache Kafka</span> pour le buffering 
+    et des bases de données distribuées comme <span class="font-semibold text-orange-600">Elasticsearch</span> pour le stockage, 
+    deviennent des composants <span class="font-semibold text-green-700">essentiels</span> et non plus optionnels.
+  </p>
+</div>
+
+
                     <div class="anecdote-box">
                          <h3 class="text-xl font-semibold text-green-900 mb-2">💡 Le savais-tu ? L'origine d'Elasticsearch</h3>
                          <p class="text-slate-700">Shay Banon, le créateur d'Elasticsearch, a commencé à le développer en 2010 non pas pour des logs, mais pour aider sa femme (cheffe cuisinière) à créer une application de recherche de recettes. La puissance du moteur de recherche s'est avérée parfaite pour... les logs !</p>
