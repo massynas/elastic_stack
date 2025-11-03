@@ -1,13 +1,15 @@
 <!DOCTYPE html>
 <html lang="fr" class="scroll-smooth">
 <head>
-    <meta charset="UTF-T">
+    <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Cours Complet - La Suite Elastic (ELK) v8.x</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- 
     Structure du Cours (Basée sur les recommandations)
+    0. Prérequis (VM Standardisée)
     1. Introduction (Contexte Métier)
+    1.5. Théorie des Logs
     2. Architecture
     3. ES Fondamentaux (Théorie)
     4. Installation (Pratique - Apache, ES, Kibana)
@@ -17,6 +19,7 @@
     8. Cas Pratiques (Projet)
     9. Optimisation
     10. Quiz
+    Annexe: Dépannage VM
     -->
     <style>
         body {
@@ -161,6 +164,10 @@
 
                     <li class="sidebar-title">Introduction</li>
                     <li><a href="#intro" class="sidebar-link group flex items-center px-3 py-2 text-slate-700 hover:bg-slate-100 rounded-md text-sm font-medium">1. Introduction à ELK</a></li>
+                    <li><a href="#theorie-logs" class="sidebar-link group flex items-center px-3 py-2 text-slate-700 hover:bg-slate-100 rounded-md text-sm font-medium">1.5. Théorie des Logs (Le "Pourquoi")</a></li>
+                    <li><a href="#architecture" class="sidebar-link group flex items-center px-3 py-2 text-slate-700 hover:bg-slate-100 rounded-md text-sm font-medium">2. Architecture Globale</a></li>
+
+                    <li class="sidebar-title">Elasticsearch</li>
                     <li><a href="#es-fondamentaux" class="sidebar-link group flex items-center px-3 py-2 text-slate-700 hover:bg-slate-100 rounded-md text-sm font-medium">3. ES - Fondamentaux</a></li>
                     <li><a href="#installation" class="sidebar-link group flex items-center px-3 py-2 text-slate-700 hover:bg-slate-100 rounded-md text-sm font-medium">4. ES - Installation & Admin</a></li>
 
@@ -723,7 +730,7 @@ echo 'vm.max_map_count=262144' | sudo tee -a /etc/sysctl.conf
 sudo /usr/share/elasticsearch/bin/elasticsearch-create-enrollment-token -s kibana
 </code></pre>
                     </div>
-                    <p class="mt-4">Copiez le long token généré. Ensuite, démarrez Kibana. Il vous demandera le token lors de la première visite sur `http://localhost:5601`.</p>
+                    <p class="mt-4">Copiez le long token généré. Ensuite, démarrez Kibana. Il vous demandera le token lors de la première visite sur `http://[IP_DE_LA_VM]:5601`.</p>
                     <p class="mt-2">Alternativement, si Kibana a déjà démarré, modifiez `/etc/kibana/kibana.yml` pour ajouter l'URL d'Elasticsearch (en HTTPS) et redémarrez-le.</p>
                     <div class="code-block">
 <pre><code class="language-bash">sudo systemctl start kibana
@@ -1099,7 +1106,25 @@ bytes > 1000
 }
 
 filter {
-  # ... (filtres csv, mutate, date) ...
+  # Ignorer la première ligne (l'en-tête)
+  if [message] =~ "timestamp,ligne" {
+    drop { }
+  }
+
+  csv {
+    separator => ","
+    columns => ["timestamp","ligne","station","coordonnees","retard_secondes"]
+  }
+
+  # Convertir les types
+  mutate {
+    convert => { "retard_secondes" => "integer" }
+  }
+
+  # Gérer la date
+  date {
+    match => [ "timestamp", "ISO8601" ] # ISO8601 gère "2025-11-03T08:30:15"
+  }
   
   # Gérer la géolocalisation
   # Le champ "coordonnees" (ex: "48.858, 2.347") doit être séparé
@@ -1146,6 +1171,67 @@ output {
                     </ul>
                 </section>
                 
+                <!-- 9. Optimisation -->
+                <section id="optimisation" class="content-section space-y-6 hidden">
+                    <h1 class="text-4xl font-bold tracking-tight text-slate-900">9. Optimisation & Troubleshooting</h1>
+                    <p class="text-lg text-slate-600">Votre stack fonctionne, mais elle est lente ou instable ? Voici les bases de l'optimisation.</p>
+
+                    <h3 class="text-2xl font-semibold text-sky-900 mt-8">Troubleshooting : Santé du Cluster (Rouge / Jaune / Vert)</h3>
+                    <p class="text-slate-700">La commande `GET /_cluster/health` est vitale. Elle retourne un statut :</p>
+                    <ul class="list-disc list-inside space-y-3 text-slate-700">
+                        <li><span class="font-semibold text-green-600">Vert (Green) :</span> Tout va bien. Tous les shards principaux ET leurs répliques sont alloués.</li>
+                        <li><span class="font-semibold text-yellow-600">Jaune (Yellow) :</span> **Problème courant.** Tous les shards principaux sont alloués (votre index fonctionne), mais une ou plusieurs **répliques** n'ont pas pu être assignées.
+                            <br><span class="text-sm text-slate-600"><strong>Cause :</strong> Vous n'avez qu'un seul nœud. ES ne peut pas placer la réplique sur le même nœud que le shard principal (panne). C'est normal en développement.</span>
+                            <br><span class="text-sm text-slate-600"><strong>Solution (en dev) :</strong> Mettre le nombre de répliques à 0 pour cet index.</span></li>
+                        <li><span class="font-semibold text-red-600">Rouge (Red) :</span> **Grave.** Un ou plusieurs **shards principaux** ne sont pas alloués. Des données sont manquantes.
+                            <br><span class="text-sm text-slate-600"><strong>Cause :</strong> Perte de plusieurs nœuds, corruption de disque, pas assez d'espace disque.</span></li>
+                    </ul>
+                    <div class="code-block mt-2">
+<pre><code class="language-json"># Forcer un index à passer en vert (en dev, ne pas faire en prod)
+PUT /mon-index-jaune/_settings
+{
+  "index": {
+    "number_of_replicas": 0
+  }
+}
+</code></pre>
+                    </div>
+
+                    <h3 class="text-2xl font-semibold text-sky-900 mt-8">Gestion du Cycle de Vie (ILM)</h3>
+                    <p class="text-slate-700">Vous ne pouvez pas garder tous les logs sur des SSD rapides (NVMe) éternellement. ILM (Index Lifecycle Management) automatise le déplacement des données à travers différents "tiers" (niveaux) de matériel pour économiser de l'argent.</p>
+                    
+                    <div class="space-y-4 mt-6">
+                        <div class="ilm-tier ilm-hot">
+                            <h5 class="font-bold text-lg text-red-800">1. Tier HOT (0-7 jours)</h5>
+                            <p class="text-sm text-red-700">**Matériel :** SSDs NVMe (très rapides)</p>
+                            <p class="text-sm text-slate-700">**Rôle :** Ingestion et recherche active. Les données d'aujourd'hui.</p>
+                        </div>
+                        <div class="text-center text-2xl text-slate-400">↓</div>
+                        <div class="ilm-tier ilm-warm">
+                            <h5 class="font-bold text-lg text-orange-800">2. Tier WARM (7-30 jours)</h5>
+                            <p class="text-sm text-orange-700">**Matériel :** SSDs standards</p>
+                            <p class="text-sm text-slate-700">**Rôle :** Données moins consultées. L'index devient "read-only".</p>
+                        </div>
+                        <div class="text-center text-2xl text-slate-400">↓</div>
+                        <div class="ilm-tier ilm-cold">
+                            <h5 class="font-bold text-lg text-blue-800">3. Tier COLD (30-90 jours)</h5>
+                            <p class="text-sm text-blue-700">**Matériel :** Disques durs HDD (lents, pas chers)</p>
+                            <p class="text-sm text-slate-700">**Rôle :** Données rarement consultées. (Utilise des "searchable snapshots").</p>
+                        </div>
+                        <div class="text-center text-2xl text-slate-400">↓</div>
+                        <div class="ilm-tier ilm-frozen">
+                            <h5 class="font-bold text-lg text-gray-800">4. Tier FROZEN (90j - 1 an)</h5>
+                            <p class="text-sm text-gray-700">**Matériel :** Stockage objet (Amazon S3, Azure Blob)</p>
+                            <p class="text-sm text-slate-700">**Rôle :** Archive. Consultable très lentement.</p>
+                        </div>
+                        <div class="text-center text-2xl text-slate-400">↓</div>
+                        <div class="ilm-tier border-dashed border-slate-400 bg-slate-100">
+                            <h5 class="font-bold text-lg text-slate-800">5. Delete (> 1 an)</h5>
+                            <p class="text-sm text-slate-700">**Rôle :** Supprimer automatiquement les données (RGPD).</p>
+                        </div>
+                    </div>
+                </section>
+
                 <!-- 10. Quiz Final -->
                 <section id="quiz" class="content-section space-y-6 hidden">
                     <h1 class="text-4xl font-bold tracking-tight text-slate-900">10. Quiz Final</h1>
@@ -1287,12 +1373,12 @@ sudo apt autoremove && sudo apt autoclean
             });
 
             // Initial section load
-            const initialHash = window.location.hash || '#intro';
+            const initialHash = window.location.hash || '#setup-vm'; // MODIFIÉ : Démarrer au Chap 0
             showSection(initialHash);
 
             // Handle browser back/forward
             window.addEventListener('popstate', () => {
-                showSection(window.location.hash || '#intro');
+                showSection(window.location.hash || '#setup-vm');
             });
 
             // --- Gestion des Blocs de Code (Copie) ---
@@ -1429,6 +1515,4 @@ sudo apt autoremove && sudo apt autoclean
     </script>
 </body>
 </html>
-
-
 
