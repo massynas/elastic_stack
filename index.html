@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Cours (Enrichi Cluster) - Elastic Stack v8.x</title>
+    <title>Cours (Enrichi Cluster+) - Elastic Stack v8.x</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- 
     Structure du Cours (Basée sur les recommandations)
@@ -11,16 +11,16 @@
     1. Introduction (Contexte Métier)
     1.5. Théorie des Logs
     2. Architecture
-    3. ES Fondamentaux (Théorie + Images)
+    3. ES Fondamentaux (Théorie + Analyzers + Images)
     4. Installation (Pratique - Apache DÉTAILLÉ, 'à l'ancienne', ES, Kibana + Images)
     5. Logstash (Théorie + Pratique + Images + Défi)
     6. Beats (Théorie + Pratique guidée + Images + Défi)
     7. Kibana (Théorie + Pratique guidée par images + Défi)
     8. Cas Pratiques (Projet Open Data + Partage)
-    9. Optimisation (ILM, Troubleshooting, Backup)
+    9. Optimisation (Mappings Avancés, Sharding, ILM, Troubleshooting, Backup)
     10. Quiz (Avec Badges)
     Annexes: Dépannage, FAQ, Glossaire, Ressources
-    Pour Aller Plus Loin: (Ressources + NOUVELLE section Cluster)
+    Pour Aller Plus Loin: (Ressources + Cluster + Firewall)
     -->
     <style>
         body {
@@ -580,6 +580,29 @@ ping -c 1 google.com # Doit répondre
                             <li><strong>`keyword` :</strong> Le champ **n'est pas analysé**. "Le renard brun" est stocké comme une seule valeur. Utilisé pour les codes HTTP (`response: 200`), les IPs, les statuts.</li>
                         </ul>
                     </div>
+
+                    <!-- AJOUT : Théorie des Analyzers -->
+                    <h3 class="text-2xl font-semibold text-sky-900 mt-8"> Les "Analyzers"</h3>
+                    <div class="focus-box">
+                        <h3 class="text-xl font-semibold text-sky-900 mb-4">Comment fonctionne l'analyse d'un champ `text` ?</h3>
+                        <p class="text-slate-700">Un **Analyzer** est un mécanisme qui s'exécute *au moment de l'indexation* (écriture) pour transformer un texte en *tokens* (termes) qui seront placés dans l'index inversé.</p>
+                        <p class="text-slate-700 mt-2">Un Analyzer standard effectue 3 étapes :</p>
+                        <ol class="list-decimal list-inside space-y-2 text-slate-700 mt-2">
+                            <li><strong>Character Filters :</strong> Nettoie le texte (ex: enlève le HTML).</li>
+                            <li><strong>Tokenizer :</strong> Découpe la chaîne en tokens (ex: aux espaces).</li>
+                            <li><strong>Token Filters :</strong> Transforme les tokens (ex: met tout en minuscule, enlève les "stop words" comme 'le', 'la', 'un').</li>
+                        </ol>
+                        <p class="text-slate-700 mt-4 font-semibold">Exemple (Analyzer `standard`) :</p>
+                        <ul class="list-disc list-inside text-slate-700">
+                            <li>**Texte d'entrée :** `"Le renard brun SAUTE."`</li>
+                            <li>**Tokens après `standard_tokenizer` :** `[Le, renard, brun, SAUTE]`</li>
+                            <li>**Tokens après `lowercase_filter` :** `[le, renard, brun, saute]`</li>
+                            <li>**Tokens après `stop_filter` (français) :** `[renard, brun, saute]`</li>
+                            <li>**Résultat dans l'index :** `renard`, `brun`, `saute`.</li>
+                        </ul>
+                        <p class="text-slate-700 mt-2">C'est grâce à cela qu'une recherche pour "renard" trouvera ce document.</p>
+                    </div>
+                    <!-- FIN AJOUT -->
 
                     <h3 class="text-2xl font-semibold text-sky-900 mt-8">Scalabilité : Shards & Replicas</h3>
                     <ul class="list-disc list-inside space-y-2 text-slate-600 mt-2">
@@ -1206,6 +1229,56 @@ output {
                     <h1 class="text-4xl font-bold tracking-tight text-slate-900">9. Optimisation & Troubleshooting</h1>
                     <p class="text-lg text-slate-600">Votre stack fonctionne, mais elle est lente ou instable ?</p>
 
+                    <!-- AJOUT : Mappings Avancés -->
+                    <h3 class="text-2xl font-semibold text-sky-900 mt-8">Optimisation des Mappings (Types de Données)</h3>
+                    <p class="text-slate-700">Jusqu'à présent, nous avons laissé Elasticsearch deviner nos types (`text`, `keyword`, `integer`). C'est bien pour les tests, mais mauvais pour la production. Nous devons définir un **Mapping** (un schéma) pour être précis et optimiser le stockage.</p>
+                    
+                    <h4 class="text-lg font-semibold text-slate-800 mt-4">Le Type `date`</h4>
+                    <p class="text-slate-700">Par défaut, ES est bon pour deviner les dates, mais il est préférable de lui spécifier le format pour éviter les erreurs.</p>
+                    <div class="code-block">
+<pre><code class="language-json"># Créer un index avec un mapping de date personnalisé
+PUT /mon-index-date
+{
+  "mappings": {
+    "properties": {
+      "log_time": {
+        "type": "date",
+        "format": "dd/MM/yyyy HH:mm:ss||epoch_millis"
+      }
+    }
+  }
+}
+# Ce champ acceptera "25/12/2025 08:30:00" OU un timestamp
+</code></pre>
+                    </div>
+
+                    <h4 class="text-lg font-semibold text-slate-800 mt-4">Le Type `ip`</h4>
+                    <p class="text-slate-700">Si vous stockez une adresse IP comme `text`, vous ne pouvez pas faire de recherches par plage. Si vous utilisez le type `ip`, c'est possible :</p>
+                    <div class="code-block">
+<pre><code class="language-json"># Mapping
+PUT /mon-index-ip
+{ "mappings": { "properties": { "client_ip": { "type": "ip" } } } }
+
+# Requête (Trouver toutes les IPs de ce réseau local)
+GET /mon-index-ip/_search
+{
+  "query": {
+    "ip_range": {
+      "client_ip": { "cidr": "192.168.1.0/24" }
+    }
+  }
+}
+</code></pre>
+                    </div>
+                    <!-- FIN AJOUT -->
+
+                    <h3 class="text-2xl font-semibold text-sky-900 mt-8">Théorie du Sharding (Routage des Données)</h3>
+                    <p class="text-slate-700">Comment Elasticsearch décide-t-il sur quel shard (P0, P1, ou P2) un nouveau document doit aller ?</p>
+                    <p class="text-slate-700 mt-2">Il utilise une formule de hachage simple :</p>
+                    <div class="code-block text-center text-base"><pre><code>shard_cible = hash(ID_du_document) % nombre_de_shards_primaires</code></pre></div>
+                    <p class="text-slate-700 mt-2">Cela signifie que le choix du shard est **déterministe**. Si vous mettez à jour un document, ES recalcule le hash de son ID et sait exactement sur quel shard le trouver, sans avoir à chercher.</p>
+                    <p class="text-slate-700 mt-2">C'est aussi pour cela qu'il est **impossible de changer le nombre de shards primaires** d'un index existant (car la formule de calcul deviendrait fausse). La seule façon de le faire est de `_reindex` les données dans un nouvel index avec le bon nombre de shards.</p>
+
                     <h3 class="text-2xl font-semibold text-sky-900 mt-8">Troubleshooting : Santé du Cluster (Rouge / Jaune / Vert)</h3>
                     <p class="text-slate-700">La commande `GET /_cluster/health` (dans Dev Tools) retourne un statut :</p>
                     <ul class="list-disc list-inside space-y-3 text-slate-700">
@@ -1375,6 +1448,11 @@ POST /_snapshot/mon_depot_local/snapshot_1/_restore
                             <p class="glossary-term">Module (Beats)</p>
                             <p class="text-slate-700">Un pack de configuration pré-fait pour un Beat (ex: "Module Nginx") qui inclut le parsing et les dashboards Kibana.</p>
                         </div>
+                        <!-- AJOUT : Analyzer -->
+                        <div>
+                            <p class="glossary-term">Analyzer (Analyseur)</p>
+                            <p class="text-slate-700">Mécanisme interne d'ES qui découpe un champ `text` en tokens (termes) pour l'indexation (ex: "Le renard" -> ["renard"]).</p>
+                        </div>
                     </div>
                 </section>
                 
@@ -1396,7 +1474,7 @@ POST /_snapshot/mon_depot_local/snapshot_1/_restore
                              <li>
                                 <strong>Grok Debugger (Outil en ligne) :</strong> (Indispensable pour vos patterns)
                                 <a href="https://grokdebug.herokuapp.com/" target="_blank" class="text-sky-600 underline block">grokdebug.herokuapp.com</a> (ou utilisez celui intégré à Kibana)
-                            </li>
+</li>
                             <li>
                                 <strong>Git pour vos Configurations :</strong>
                                 <p class="text-sm">Pour le travail en équipe, stockez vos fichiers `/etc/logstash/conf.d/` dans un dépôt Git pour partager et versionner vos pipelines.</p>
@@ -1404,7 +1482,7 @@ POST /_snapshot/mon_depot_local/snapshot_1/_restore
                         </ul>
                     </div>
 
-                    <!-- NOUVELLE SECTION : CONFIGURATION CLUSTER -->
+                    <!-- AJOUT : CONFIGURATION CLUSTER -->
                     <h3 class="text-2xl font-semibold text-sky-900 mt-12">Configuration d'un Cluster Elasticsearch (Avancé)</h3>
                     <p class="text-slate-700">Pour ce cours, nous avons utilisé un seul nœud. En production, Elasticsearch fonctionne en **cluster** pour la haute disponibilité (si un serveur tombe) et la scalabilité (répartir la charge).</p>
                     <p class="text-slate-700 mt-2">Voici les concepts de base pour configurer un cluster de 2 nœuds (par exemple, 2 VMs séparées).</p>
@@ -1465,6 +1543,34 @@ node.roles: [ "master", "data", "ingest" ]
 </code></pre>
                     </div>
                     <p class="text-slate-700">Vous devriez voir `"number_of_nodes": 2`. Si c'est le cas, votre cluster est formé ! Votre statut passera aussi probablement au **Vert** (Green) car les répliques peuvent maintenant être allouées sur l'autre nœud.</p>
+                    
+                    <!-- AJOUT : Firewall -->
+                    <h3 class="text-2xl font-semibold text-sky-900 mt-12">Note sur le Firewall (Pare-feu) du Cluster</h3>
+                    <p class="text-slate-700">Par défaut, le pare-feu de votre VM (`ufw`) est désactivé. En production, il est **critique** de l'activer et de n'ouvrir que les ports nécessaires.</p>
+                    <ul class="list-disc list-inside space-y-2 text-slate-600">
+                        <li><strong>Port `9300` (TCP) :</strong> Port de "Transport". Utilisé pour la communication **entre les nœuds** du cluster. Il ne doit JAMAIS être ouvert sur Internet, seulement entre vos serveurs.</li>
+                        <li><strong>Port `9200` (TCP) :</strong> Port "HTTP". Utilisé pour l'API REST. C'est ici que Kibana, Logstash, et vos applications parlent à Elasticsearch.</li>
+                        <li><strong>Port `5601` (TCP) :</strong> Port de Kibana. C'est le port que vos utilisateurs finaux accèdent via leur navigateur.</li>
+                    </ul>
+
+                    <h4 class="text-lg font-semibold text-slate-800 mt-6">Exemple de configuration `ufw` (sur VM-1)</h4>
+                     <div class="code-block">
+<pre><code class="language-bash"># Activer le pare-feu
+sudo ufw enable
+
+# Autoriser SSH (pour que vous ne soyez pas bloqué !)
+sudo ufw allow ssh
+
+# Autoriser Kibana pour tout le monde
+sudo ufw allow 5601/tcp
+
+# Autoriser l'API ES (9200) seulement depuis des IPs de confiance
+sudo ufw allow from 192.168.1.0/24 to any port 9200
+
+# Autoriser la communication inter-nœuds (9300) SEULEMENT depuis l'autre nœud
+sudo ufw allow from 192.168.1.11 to any port 9300
+</code></pre>
+                    </div>
                 </section>
 
             </div>
