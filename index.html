@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Cours (Enrichi + Images) Complet - Elastic Stack v8.x</title>
+    <title>Cours (Enrichi Cluster) - Elastic Stack v8.x</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- 
     Structure du Cours (Basée sur les recommandations)
@@ -20,6 +20,7 @@
     9. Optimisation (ILM, Troubleshooting, Backup)
     10. Quiz (Avec Badges)
     Annexes: Dépannage, FAQ, Glossaire, Ressources
+    Pour Aller Plus Loin: (Ressources + NOUVELLE section Cluster)
     -->
     <style>
         body {
@@ -197,16 +198,11 @@
         /* Style pour les images intégrées */
         .course-image {
             width: 100%;
-            max-width: 800px; /* Limiter la largeur max pour la lisibilité */
-            height: auto;
             border-radius: 0.5rem; /* rounded-lg */
             border: 1px solid #e2e8f0; /* slate-200 */
             margin-top: 1rem;
             margin-bottom: 1rem;
             box-shadow: 0 4px 6px rgba(0,0,0,0.05);
-            display: block;
-            margin-left: auto;
-            margin-right: auto;
         }
     </style>
 </head>
@@ -636,7 +632,7 @@ GET /mon-premier-index/_search
                     <h1 class="text-4xl font-bold tracking-tight text-slate-900">4. Installation & Administration</h1>
                     <p class="text-lg text-slate-600">Mettons en place notre environnement de travail (sur Debian/Ubuntu).</p>
 
-                    <!-- SECTION 4.0 - TP DÉBUTANT APACHE (RÉ-INTÉGRÉE) -->
+                    <!-- SECTION 4.0 - TP DÉBUTANT APACHE (mise à jour) -->
                     <h2 class="text-3xl font-bold tracking-tight text-slate-900 mt-8">4.0. TP : Notre Premier Serveur (Apache)</h2>
                     <p class="text-slate-700 mb-4">Avant d'analyser des logs, nous avons besoin de quelque chose qui en produit ! Apache est un serveur web qui génère un log à chaque visite.</p>
                     
@@ -677,8 +673,8 @@ echo "<h1>Bonjour le cours Elastic !</h1>" | sudo tee /var/www/html/hello.html
                     </div>
                     <p class="text-slate-700 mt-2">Maintenant, visitez `http://[IP_DE_LA_VM]/hello.html`. Vous devriez voir votre message !</p>
 
-                    <!-- SECTION - TP "À L'ANCIENNE" (RÉ-INTÉGRÉE) -->
-                    <h2 class="text-2xl font-semibold text-sky-900 mt-12">🛠️ Activité : Découvrir les logs "à l'ancienne"</h2>
+                    <!-- SECTION - TP "À L'ANCIENNE" (mise à jour) -->
+                    <h2 class="text-2xl font-semibold text-sky-900 mt-12">🛠️ Activité : Découvrir les logs "à l'ancienne" (avant ELK)</h2>
                     <p class="text-slate-700">Chaque fois que vous avez visité ces pages, Apache a écrit une ligne dans un fichier. C'est ça, un log !</p>
 
                     <div class="focus-box border-l-blue-400 mt-4">
@@ -691,7 +687,7 @@ echo "<h1>Bonjour le cours Elastic !</h1>" | sudo tee /var/www/html/hello.html
                     <div class="focus-box border-l-lime-400 mt-6">
                         <h4 class="font-semibold text-lime-900 mb-2">2. Générer une erreur 404</h4>
                         <p class="text-slate-700">Visitez une page qui n'existe pas : `http://[IP_DE_LA_VM]/page-cassée`.</p>
-                        <p class="text-slate-700 mt-2">Regardez votre `tail -f`. Vous verrez une ligne avec un code "404".</p>
+                        <p class="text-slate-700 mt-2">Regardez votre `tail -f`. Vous verrez une ligne avec un code "404".</Details>
                     </div>
                     
                     <div class="focus-box border-l-cyan-400 mt-6">
@@ -1400,13 +1396,75 @@ POST /_snapshot/mon_depot_local/snapshot_1/_restore
                              <li>
                                 <strong>Grok Debugger (Outil en ligne) :</strong> (Indispensable pour vos patterns)
                                 <a href="https://grokdebug.herokuapp.com/" target="_blank" class="text-sky-600 underline block">grokdebug.herokuapp.com</a> (ou utilisez celui intégré à Kibana)
-</li>
+                            </li>
                             <li>
                                 <strong>Git pour vos Configurations :</strong>
                                 <p class="text-sm">Pour le travail en équipe, stockez vos fichiers `/etc/logstash/conf.d/` dans un dépôt Git pour partager et versionner vos pipelines.</p>
                             </li>
                         </ul>
                     </div>
+
+                    <!-- NOUVELLE SECTION : CONFIGURATION CLUSTER -->
+                    <h3 class="text-2xl font-semibold text-sky-900 mt-12">Configuration d'un Cluster Elasticsearch (Avancé)</h3>
+                    <p class="text-slate-700">Pour ce cours, nous avons utilisé un seul nœud. En production, Elasticsearch fonctionne en **cluster** pour la haute disponibilité (si un serveur tombe) et la scalabilité (répartir la charge).</p>
+                    <p class="text-slate-700 mt-2">Voici les concepts de base pour configurer un cluster de 2 nœuds (par exemple, 2 VMs séparées).</p>
+                    
+                    <h4 class="text-lg font-semibold text-slate-800 mt-6">Concepts Clés du Clustering</h4>
+                    <ul class="list-disc list-inside space-y-2 text-slate-600">
+                        <li><strong>Rôles des Nœuds :</strong> Un nœud peut être `master` (gère le cluster), `data` (stocke les données), `ingest` (traite les données), etc.</li>
+                        <li><strong>`cluster.name` :</strong> Tous les nœuds de votre cluster DOIVENT avoir le même nom.</li>
+                        <li><strong>`node.name` :</strong> Chaque nœud DOIT avoir un nom unique.</li>
+                        <li><strong>`discovery.seed_hosts` :</strong> La liste des IPs (ou noms d'hôte) des nœuds maîtres potentiels que ce nœud contactera pour rejoindre le cluster.</li>
+                        <li><strong>`cluster.initial_master_nodes` :</strong> (Uniquement pour le 1er démarrage) La liste des `node.name` qui sont éligibles pour devenir le premier maître.</li>
+                    </ul>
+
+                    <h4 class="text-lg font-semibold text-slate-800 mt-6">Exemple de Configuration (`elasticsearch.yml`)</h4>
+                    <p class="text-slate-700">Supposons que vous avez deux VMs : `VM-1` (IP: 192.168.1.10) et `VM-2` (IP: 192.168.1.11).</p>
+                    
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div class="code-block">
+<pre><code class="language-yaml"># --- VM-1 (elasticsearch.yml) ---
+
+cluster.name: "mon_cluster_prod"
+node.name: "node-1"
+
+# Écouter sur l'IP de la VM
+network.host: 0.0.0.0
+
+# Découverte
+discovery.seed_hosts: ["192.168.1.10", "192.168.1.11"]
+cluster.initial_master_nodes: ["node-1", "node-2"]
+
+# Rôles (ce nœud fait tout)
+node.roles: [ "master", "data", "ingest" ]
+</code></pre>
+                        </div>
+                        <div class="code-block">
+<pre><code class="language-yaml"># --- VM-2 (elasticsearch.yml) ---
+
+cluster.name: "mon_cluster_prod"
+node.name: "node-2"
+
+# Écouter sur l'IP de la VM
+network.host: 0.0.0.0
+
+# Découverte
+discovery.seed_hosts: ["192.168.1.10", "192.168.1.11"]
+cluster.initial_master_nodes: ["node-1", "node-2"]
+
+# Rôles (ce nœud fait tout)
+node.roles: [ "master", "data", "ingest" ]
+</code></pre>
+                        </div>
+                    </div>
+
+                    <h4 class="text-lg font-semibold text-slate-800 mt-6">Vérification du Cluster</h4>
+                    <p class="text-slate-700">Après avoir démarré les deux nœuds, connectez-vous aux Dev Tools de Kibana (qui peut pointer vers n'importe lequel des nœuds) et exécutez :</p>
+                    <div class="code-block">
+<pre><code class="language-json">GET /_cluster/health
+</code></pre>
+                    </div>
+                    <p class="text-slate-700">Vous devriez voir `"number_of_nodes": 2`. Si c'est le cas, votre cluster est formé ! Votre statut passera aussi probablement au **Vert** (Green) car les répliques peuvent maintenant être allouées sur l'autre nœud.</p>
                 </section>
 
             </div>
